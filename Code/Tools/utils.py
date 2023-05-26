@@ -1413,26 +1413,31 @@ def get_Bust(dir,image,image_size):
     label_path = os.path.join(dir, 'mask.png')
     Bust_path=dir.split('data')[0]
     Bust_path=os.path.join(Bust_path,'data/Bust')
-    ### use bust with different size to adpat different faces
-    if os.path.exists(os.path.join(dir,'trans.txt')):
+    ### use bust with different size to adapt different faces
+    # if os.path.exists(os.path.join(dir,'trans.txt')):
 
-        if dir[-2:]!='_0':
-            trans=os.path.join(dir,'trans.txt')
-            with open(trans,'r') as f:
-                f.readline()
-                f.readline()
-                f.readline()
-                f.readline()
-                scale=f.readline()
-            f.close()
-            scale=float(scale)
-            Ind_large=min((scale-0.80)//0.05+3,9)
-            Ind_small=max((scale-0.80)//0.05-1,1)
-            randI = random.randint(Ind_small, Ind_large)
-            Bust_path = os.path.join(Bust_path, 'color{}.png'.format(randI))
-        else:
-            randI=random.randint(2,6)
-            Bust_path=os.path.join(Bust_path,'color{}.png'.format(randI))
+    #     if dir[-2:]!='_0':
+    #         trans=os.path.join(dir,'trans.txt')
+    #         with open(trans,'r') as f:
+    #             f.readline()
+    #             f.readline()
+    #             f.readline()
+    #             f.readline()
+    #             scale=f.readline()
+    #         f.close()
+    #         scale=float(scale)
+    #         Ind_large=min((scale-0.80)//0.05+3,9)
+    #         Ind_small=max((scale-0.80)//0.05-1,1)
+    #         randI = random.randint(Ind_small, Ind_large)
+    #         Bust_path = os.path.join(Bust_path, 'color{}.png'.format(randI))
+    #     else:
+    #         randI=random.randint(2,6)
+    #         Bust_path=os.path.join(Bust_path,'color{}.png'.format(randI))
+    # else:
+    #     Bust_path = os.path.join(Bust_path, 'color5.png')
+    if "_v" in dir:
+        n = dir.split('_v')[1][0]
+        Bust_path = os.path.join(Bust_path, f'body_{n}.png')
     else:
         Bust_path = os.path.join(Bust_path, 'color5.png')
 

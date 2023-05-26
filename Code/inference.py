@@ -27,7 +27,7 @@ class strand_inference:
         
         opt.model_name="GrowingNet"
         opt.save_root="checkpoints/GrowingNet"
-        opt.which_iter=40000
+        opt.which_iter=525000
         self.iter[opt.model_name] = opt.which_iter
         opt.check_name="2023-05-11_bust_prev3"
         opt.condition=True
@@ -61,17 +61,18 @@ class strand_inference:
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
         m = transform.SimilarityTransform(scale=[0.82,0.75,0.75],translation=[0.003389,-1.2727,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
         points=transform.matrix_transform(points,m.params)
+        points,segments = resample(points,segments)
         trans_hair(points,segments)
         # render(f"/home/yxh/Documents/company/strandhair/{file.split('.')[0]}1.png")
         
 if __name__=="__main__":
-    reset()
-    segments,points = readhair("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/strands00001/hair_525000.hair")
-    m = transform.SimilarityTransform(scale=[0.82,0.75,0.75],translation=[0.003389,-1.2727,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
-    points=transform.matrix_transform(points,m.params)
-    points,segments = resample(points,segments)
-    trans_hair(points,segments)
+    # reset()
+    # segments,points = readhair("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/strands00001/hair_525000.hair")
+    # m = transform.SimilarityTransform(scale=[0.82,0.75,0.75],translation=[0.003389,-1.2727,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
+    # points=transform.matrix_transform(points,m.params)
+    # points,segments = resample(points,segments)
+    # trans_hair(points,segments)
     
-    img = cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/test/image.jpg")
+    img = cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/test/Screenshot from 2023-03-15 15-36-32.png")
     hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)))
     hair_infe.inference(img)
