@@ -36,14 +36,15 @@ class image_loader(base_loader):
     def __getitem__(self, index):
         data_list={}
         file_name=self.train_corpus[index]
-        flip=False
+        x=[False,True]
+        flip=x[random.randint(0, 1)]
         image=get_image(file_name,flip,self.opt.image_size,self.opt.Ori_mode,self.opt.blur_ori,no_use_depth=True,use_gt=True,use_conf=self.opt.use_conf)
         image=torch.from_numpy(image)
         image=image.permute(2,0,1)
         Ori2D = image.clone()
 
         if not self.opt.no_use_bust:
-            image = get_Bust(file_name, image, self.opt.image_size)
+            image = get_Bust(file_name, image, self.opt.image_size,flip)
 
         data_list['image']=image
         if self.opt.use_HD:

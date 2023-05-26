@@ -13,7 +13,7 @@ def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
     ])
     camera_pose = camera_pose_base
     tri_geometry = tri_sence
-    scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1])
+    scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1],bg_color=[0,0,0])
     bGlasses = False
     mesh = tri_sence
 
@@ -38,8 +38,6 @@ def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
         pc = pyrender.PerspectiveCamera(yfov=13.3493 * np.pi / 180, aspectRatio=15/13.3493, znear=0.01,zfar=20)
     print(pc.get_projection_matrix())
     scene.add(pc, pose=camera_pose)
-    x=pc.get_projection_matrix()
-    y=scene.main_camera_node.matrix
     color, depth = r.render(scene, flags=flags)
     matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
     img = cv2.cvtColor(color, cv2.COLOR_RGBA2BGR)

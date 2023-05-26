@@ -82,7 +82,7 @@ def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_dept
 
     if mode=='Ori':#方向图，只要1,2通道
         if blur:
-            ori = os.path.join(d, 'Ori.png').replace("\\", "/")
+            ori = os.path.join(d, 'Ori2.png').replace("\\", "/")
         else:
             ori=os.path.join(d,'disA.png').replace("\\", "/")
     oriImg=cv2.imread(ori)
@@ -92,7 +92,7 @@ def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_dept
     else:
         oriData = oriImg[:, :, [2, 1]].astype(np.float32) / 255.0  # R AND G
     # print(np.min(oriData[:,2:3]))
-    index=np.where(oriData[:,0:1]<0.2,np.zeros_like(oriData[:,2:3]),np.ones_like(oriData[:,2:3]))
+    index=np.where(oriData[:,:,0:1]<0.2,np.zeros_like(oriData[:,2:3]),np.ones_like(oriData[:,2:3]))
     oriData=(oriData-0.5)*2
 
     if flip:
@@ -108,7 +108,7 @@ def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_dept
     oriData=(oriData+1)/2
 
     if flip:
-        oriData=oriData*mask[:,:,0:1]*index
+        oriData=oriData*mask[:,:,0:1]#*index
 
 
     if no_use_depth is False:
@@ -1408,11 +1408,11 @@ def get_luminance_map(dir,flip,image_size,no_use_bust=False):
     return img_L[0]
 
 
-def get_Bust(dir,image,image_size):
+def get_Bust(dir,image,image_size,flip=False):
 
     label_path = os.path.join(dir, 'mask.png')
     Bust_path=dir.split('data')[0]
-    Bust_path=os.path.join(Bust_path,'data/Bust')
+    Bust_path=os.path.join(Bust_path,'data/HairStrand/Bust')
     ### use bust with different size to adapt different faces
     # if os.path.exists(os.path.join(dir,'trans.txt')):
 
@@ -1444,23 +1444,26 @@ def get_Bust(dir,image,image_size):
 
     # Bust_path = os.path.join(dir, 'color.png')
 
-    label = Image.open(label_path)
+    # label = Image.open(label_path)
     Bust = Image.open(Bust_path)
     transform_list = []
     transform_list += [transforms.Resize((image_size, image_size))]
     transform_list += [transforms.ToTensor()]
     transform_image = transforms.Compose(transform_list)
-    label = transform_image(label)
+    # label = transform_image(label)
     Bust = transform_image(Bust)
-    label = label[0:3]
-    label[label >= 0.0039] = 1
-    label[label < 0.0039] = 0
-
+    if flip:
+        Bust = torch.flip(Bust,dims=[2])
+    # label = label[0:3]
+    # label[label >= 0.0039] = 1
+    # label[label < 0.0039] = 0
+    # save_image(Bust,'Bust.png')
 
     image = torch.unsqueeze(image, 0)#方向图
-    label = torch.unsqueeze(label, 0)#mask
-    # label=torch.norm(image,2,dim=1,keepdim=True)
-    # label[label >0]=1
+    # label = torch.unsqueeze(label, 0)#mask
+    label=torch.norm(image,2,dim=1,keepdim=True)
+    label[label >0]=1
+    label = torch.unsqueeze(label, 0)
     # label=label.repeat(1,2,1,1)
     # label=torch.where(image[:,0:2,...]!=0,torch.ones_like(image[:,0:2,...]),torch.zeros_like(image[:,0:2,...]))
     Bust = torch.unsqueeze(Bust, 0)#人体渲染图
