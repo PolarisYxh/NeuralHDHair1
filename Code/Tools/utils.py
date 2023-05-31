@@ -82,7 +82,7 @@ def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_dept
 
     if mode=='Ori':#方向图，只要1,2通道
         if blur:
-            ori = os.path.join(d, 'Ori2.png').replace("\\", "/")
+            ori = os.path.join(d, 'Ori.png').replace("\\", "/")
         else:
             ori=os.path.join(d,'disA.png').replace("\\", "/")
     oriImg=cv2.imread(ori)
@@ -1439,7 +1439,7 @@ def get_Bust(dir,image,image_size,flip=False):
         n = dir.split('_v')[1][0]
         Bust_path = os.path.join(Bust_path, f'body_{n}.png')
     else:
-        Bust_path = os.path.join(Bust_path, 'color5.png')
+        Bust_path = os.path.join(Bust_path, 'body_0.png')
 
 
     # Bust_path = os.path.join(dir, 'color.png')
@@ -1468,7 +1468,7 @@ def get_Bust(dir,image,image_size,flip=False):
     # label=torch.where(image[:,0:2,...]!=0,torch.ones_like(image[:,0:2,...]),torch.zeros_like(image[:,0:2,...]))
     Bust = torch.unsqueeze(Bust, 0)#人体渲染图
     image[:,0:2,...]=torch.where(label[:,0:2,...]==1,image[:,0:2,...],Bust[:,0:2,...])
-    save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),'display.png')
+    save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),dir.split('/')[-1]+'.png')
     if not os.path.exists(os.path.join(dir, 'trans.txt')):
         save_image(torch.cat([image, torch.zeros(1, 1, image_size, image_size)], dim=1)[:, :3, ...], 'test1.png')
     # else:
