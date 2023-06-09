@@ -50,7 +50,10 @@ ssh -L 10086:127.0.0.1:10086 151 -N -v -v
 
 3.The hair should be aligned with the bust as much as possible, you may need the face alignment algorithm to calculate the affine transformation.(data/Train_input/DB1 contains standard input samples)
 
-
+# data #
+roots1.mat from strands00356
+roots2.mat from 美术做的短发发根
+test_hair.mat 美术做的短发
 # Citation #
     @inproceedings{wu2022neuralhdhair,
     title={NeuralHDHair: Automatic High-fidelity Hair Modeling from a Single Image Using Implicit Neural Representations},

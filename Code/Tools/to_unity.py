@@ -10,16 +10,20 @@ def reset():
 def render(save_name):
     ret = requests.get(f"http://127.0.0.1:11111/?type=capture&filePath={save_name}")
     print(ret.text)
-def trans_hair(points,segments):
+def trans_hair(points,segments,num=100):
     js = {
         "type": "vertices",
         "name": "hair",
-        "gender": "male"
+        "gender": "male",
+        "hairType":"lines",#"quads"
+        "hairWidth":0.0005,
     }
     js['vertices']=points.reshape((-1)).tolist()
-    new_segments = np.zeros_like(segments)
-    for i in range(0,len(segments)-1):
-        new_segments[i+1]=segments[i]+new_segments[i]
+    new_segments = np.array(list(range(0,len(points)+num,num)))
+    # new_segments = np.array(segments)
+    # new_segments = np.zeros_like(segments)
+    # for i in range(0,len(segments)-1):
+    #     new_segments[i+1]=segments[i]+new_segments[i]
     js['strands']=new_segments.tolist()
     ret = requests.post(f"http://127.0.0.1:11111",data=json.dumps(js))
     if "完毕" not in ret.text:

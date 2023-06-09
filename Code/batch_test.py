@@ -22,7 +22,9 @@ elif opt.model_name=='HairModeling':
 
 g_slover.initialize(opt)
 dir_names = os.listdir(opt.save_dir)
+dir_names = list(filter(lambda name:'_v' not in name,dir_names))
 for dir_name in dir_names:
+    # dir_name = "strands00187_v3"
     opt.test_file=dir_name
     g_slover.test(dataloader)
     if opt.model_name=="HairSpatNet":
@@ -38,4 +40,4 @@ for dir_name in dir_names:
         points=transform.matrix_transform(points,m.params)
         # write_strand2abc1("/home/yxh/Documents/company/strandhair/strands00184.abc",segments,points)
         trans_hair(points,segments)
-        render(f"/home/yxh/Documents/company/strandhair/{file.split('.')[0]}1.png")
+        render(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input/{dir_name}/grownet_{opt.which_iter}.png")

@@ -32,7 +32,7 @@ import cv2
 import numpy as np
 
 
-def cvmat2base64(img_np, houzhui='.png'):
+def cvmat2base64(img_np, houzhui='.jpg'):
     #opencv的Mat格式转为base64
     image = cv2.imencode(houzhui, img_np)[1]
     base64_data = str(base64.b64encode(image))

@@ -82,7 +82,7 @@ def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_dept
 
     if mode=='Ori':#方向图，只要1,2通道
         if blur:
-            ori = os.path.join(d, 'Ori.png').replace("\\", "/")
+            ori = os.path.join(d, 'Ori2.png').replace("\\", "/")
         else:
             ori=os.path.join(d,'disA.png').replace("\\", "/")
     oriImg=cv2.imread(ori)
@@ -784,7 +784,27 @@ def write_obj_with_label(points,labels,opt):
             f1.write(struct.pack('f', vec[1]))
             f1.write(struct.pack('f', vec[2]))
     f1.close()
-
+def load_root(file,trans=True):
+    with open(file, mode='rb')as f:
+        num_strand = f.read(4)
+        (num_strand,) = struct.unpack('I', num_strand)
+        points = []
+        for i in range(1024):
+            v = f.read(4)
+            (v,) = struct.unpack('I', v)
+            point = f.read(4 * v * 3)
+            point = struct.unpack('f' * v * 3, point)
+            if point==(0,0,0,0,0,0):
+                continue
+            points.append(point[:3])
+    f.close()
+    points=list(points)
+    # points=[[points[i*3+0],points[i*3+1],points[i*3+2]] for i in range(len(points)//3)]
+    points=np.array(points)
+    points=np.reshape(points,(-1,3))
+    if trans:
+        points=transform(points)
+    return points
 def load_strand(d,trans=True):
     file = os.path.join(d, "hair_delete.hair").replace("\\", "/")
     with open(file, mode='rb')as f:
@@ -1056,9 +1076,9 @@ def delete_point_out_ori(mask,strands):
         if count>2:
             segments.append(count)
             all_points.append(points)
-        else:
-            segments.append(count)
-            all_points.append(points)
+        # else:
+        #     segments.append(count)
+        #     all_points.append(points)
     return all_points,segments
 
 
@@ -1476,7 +1496,7 @@ def get_Bust(dir,image,image_size,flip=False):
 
 
     return image[0]
-def get_Bust1(Bust_path,image, mask,image_size,trans=None):
+def get_Bust1(Bust_path,image,image_size,trans=None):
     # label_path = os.path.join(dir, 'mask.png')
     # Bust_path=dir.split('data')[0]
     Bust_path=os.path.join(Bust_path,'data/Bust')
@@ -1501,28 +1521,30 @@ def get_Bust1(Bust_path,image, mask,image_size,trans=None):
             randI=random.randint(2,6)
             Bust_path=os.path.join(Bust_path,'color{}.png'.format(randI))
     else:
+        # Bust_path = os.path.join(Bust_path, 'body_0.png')
         Bust_path = os.path.join(Bust_path, 'color5.png')
 
     # Bust_path = os.path.join(dir, 'color.png')
 
-    label = transforms.ToPILImage()(mask)
+    # label = transforms.ToPILImage()(mask)
     # label = Image.open(label_path)
     Bust = Image.open(Bust_path)
     transform_list = []
     transform_list += [transforms.Resize((image_size, image_size))]
     transform_list += [transforms.ToTensor()]
     transform_image = transforms.Compose(transform_list)
-    label = transform_image(label)
+    # label = transform_image(label)
     Bust = transform_image(Bust)
-    label = label[0:3]
-    label[label >= 0.0039] = 1
-    label[label < 0.0039] = 0
-
+    # label = label[0:3]
+    # label[label >= 0.0039] = 1
+    # label[label < 0.0039] = 0
+    # save_image(Bust,'Bust.png')
 
     image = torch.unsqueeze(image, 0)#方向图
-    label = torch.unsqueeze(label, 0)#mask
-    # label=torch.norm(image,2,dim=1,keepdim=True)
-    # label[label >0]=1
+    # label = torch.unsqueeze(label, 0)#mask
+    label=torch.norm(image,2,dim=1,keepdim=True)
+    label[label >0]=1
+    label = torch.unsqueeze(label, 0)
     # label=label.repeat(1,2,1,1)
     # label=torch.where(image[:,0:2,...]!=0,torch.ones_like(image[:,0:2,...]),torch.zeros_like(image[:,0:2,...]))
     Bust = torch.unsqueeze(Bust, 0)#人体渲染图

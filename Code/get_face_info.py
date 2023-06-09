@@ -9,6 +9,7 @@ except:
 import math
 
 from scipy.spatial.transform import Rotation
+import skimage.transform as trans
 import os
 def angle2matrix(theta) :
     '''theta:rad
@@ -89,13 +90,13 @@ class get_face_info:
                 from http_interface import insightFaceInterface
             self.app = insightFaceInterface(path)
     
-    def get_faces(self,img, name=""):
-        if 600-img.shape[0]<0 or 600-img.shape[1]<0:
-            scale = 600/max(img.shape[0],img.shape[1])
-            img = cv2.resize(img,(int(scale*img.shape[1]), int(scale*img.shape[0])))
-        x = (640-img.shape[0])//2 if 640-img.shape[0]>0 else 0
-        y = (640-img.shape[1])//2 if 640-img.shape[1]>0 else 0
-        img = cv2.copyMakeBorder(img, x, x, y, y, cv2.BORDER_CONSTANT)
+    def get_faces(self,img0, name=""):
+        if 600-img0.shape[0]<0 or 600-img0.shape[1]<0:
+            scale = 600/max(img0.shape[0],img0.shape[1])
+            img0 = cv2.resize(img0,(int(scale*img0.shape[1]), int(scale*img0.shape[0])))
+        x = (640-img0.shape[0])//2 if 640-img0.shape[0]>0 else 0
+        y = (640-img0.shape[1])//2 if 640-img0.shape[1]>0 else 0
+        img = cv2.copyMakeBorder(img0, x, x, y, y, cv2.BORDER_CONSTANT)
         if self.bInsightFaceLocal:
             self.faces = self.app.get(img)
         else:
@@ -151,12 +152,18 @@ class get_face_info:
                 rotate = 0
                 _scale = 640  / (max(w, h)*2)
                 self.M,frame = transform(center, 640, _scale, 0, img)
-                _scale = 640  / (max(w, h)*3)
-                self.M,frameForHair = transform(center, 640, _scale, 0, img)
-                face.landmark_2d_106 = trans_points2d(face.landmark_2d_106, self.M).astype('int')
-                face.landmark_3d_68 = trans_points3d(face.landmark_3d_68, self.M).astype('int')
+                # _scale = 640  / (max(w, h)*3)
+                # self.M,frameForHair = transform(center, 640, _scale, 0, img)
+                frameForHair = img[x:-x,y:-y,:]
+                scale = 640/max(frameForHair.shape[0],frameForHair.shape[1])
+                frameForHair = cv2.resize(frameForHair,(int(scale*frameForHair.shape[1]), int(scale*frameForHair.shape[0])))
+                face.landmark_2d_106 -=np.array([y,x])
+                face.landmark_3d_68 -=np.array([y,x,0])
+                self.M = trans.SimilarityTransform(scale=scale)
+                face.landmark_2d_106 = trans_points2d(face.landmark_2d_106, self.M.params).astype('int')
+                face.landmark_3d_68 = trans_points3d(face.landmark_3d_68, self.M.params).astype('int')
                 # drawLms(frame, face.landmark_2d_106)
-                # drawLms(frameForGender,face.landmark_2d_106)
+                # drawLms(frameForHair,face.landmark_2d_106)
                 frames.append(frame)
                 framesForHair.append(frameForHair)
                 # cv2.imshow("1",frame)

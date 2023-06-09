@@ -114,7 +114,7 @@ class image_loader(base_loader):
             L_map = get_luminance_map(path, False, self.opt.image_size,self.opt.no_use_bust)
             image=torch.cat([image,L_map],0)
         elif not self.opt.no_use_bust:
-            image = get_Bust(path, image, self.opt.image_size)
+            image = get_Bust1(self.opt.current_path, image, self.opt.image_size)
         if os.path.exists(path+'/Ori_gt.mat'):
             gt_orientation = get_ground_truth_3D_ori(path, False, growInv=self.opt.growInv)
             mask = np.linalg.norm(gt_orientation, axis=-1)

@@ -50,6 +50,12 @@ class GrowingNetSolver(BaseSolver):
             self.optimizer_GN=self.create_optimizers(opt)
             self.criteria=torch.nn.CrossEntropyLoss()
             self.L1loss=torch.nn.L1Loss()
+        else:
+            # self.roots = load_root(os.path.join(self.opt.current_path,"data/map_roots1024.data"))
+            self.roots = scipy.io.loadmat(os.path.join(self.opt.current_path,"roots2.mat"), \
+                        verify_compressed_data_integrity=False)['roots']
+            self.roots = self.roots[np.random.randint(0,self.roots.shape[0]-1,size=self.opt.num_root)]
+            self.roots=transform(self.roots)
 
     def create_optimizers(self,opt):
         GrowingNet_params=[]
@@ -242,7 +248,7 @@ class GrowingNetSolver(BaseSolver):
                 print('grow cost:', time.time() - start)
 
             else:
-                out_points_2, labels_2 = self.model(strands,gt_orientation,self.pt_num-1,'rnn')
+                out_points_2, labels_2 = self.model(strands,gt_orientation,pt_num,'rnn')
 
 
         print(out_points_2.size())
@@ -297,6 +303,28 @@ class GrowingNetSolver(BaseSolver):
         final_strand_del_by_ori,final_segment=self.get_pred_strands(datas)
         write_strand(final_strand_del_by_ori, self.opt, final_segment, 'ori')
         # write_strand(final_strand_del_by_label, self.opt, final_segment_label, 'label')
+    def generate_random_root_from_roots(self):
+        roots1 = self.roots.astype('int')
+        occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
+        occ=(occ>0).astype(np.float32)
+        
+        occ1 = occ[roots1[:,2],roots1[:,1],roots1[:,0]]
+        sample_index = np.where(occ1>0)
+        random_points = self.roots[sample_index]
+        random_points = self.roots
+        
+        # random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]
+        random_points=random_points[...,None,:]
+        self.gt_orientation=torch.from_numpy(self.gt_orientation)
+        random_points=torch.from_numpy(random_points)
+        random_points=torch.reshape(random_points,(len(self.opt.gpu_ids),-1,1,3))
+        return_list={
+            'gt_ori': self.gt_orientation,
+            'strands': random_points,
+            'labels': None
+        }
+
+        return return_list
     def generate_random_root(self):
         occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
         occ=(occ>0).astype(np.float32)
@@ -338,7 +366,6 @@ class GrowingNetSolver(BaseSolver):
             'labels': None
         }
         return return_list
-    
     def inference(self, ori):
         # ori = scipy.io.loadmat("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1/Ori_gt.mat", verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
         ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
@@ -355,7 +382,8 @@ class GrowingNetSolver(BaseSolver):
         if self.opt.Bidirectional_growth:
             datas=self.generate_random_root()
         else:
-            datas=self.generate_test_data(self.opt.growInv)
+            datas=self.generate_random_root_from_roots()
+            # datas=self.generate_test_data(self.opt.growInv)
         final_strand_del_by_ori,final_segment = self.get_pred_strands(datas)
         
         final_strand_del_by_ori = transform_Inv(final_strand_del_by_ori)

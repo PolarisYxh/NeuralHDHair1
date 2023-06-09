@@ -162,7 +162,7 @@ def draw_gt_arrows_by_projection(fileDir, test=False):
     d = 96
     flip = True
     noise = True
-    ori = os.path.join(fileDir, "Ori.png").replace("\\", "/")
+    ori = os.path.join(fileDir, "Ori2.png").replace("\\", "/")
     target = cv2.imread(ori)
     target = cv2.resize(target, (1024, 1024), interpolation=cv2.INTER_NEAREST)
     target = cv2.flip(target,flipCode=1)
@@ -198,7 +198,7 @@ def draw_arrows_by_projection1(fileDir,iter,draw_occ=True,hair_ori=None):
     flip = True
     transfer = True
     noise = True
-    ori = os.path.join(fileDir, "Ori.png").replace("\\", "/")
+    ori = os.path.join(fileDir, "Ori2.png").replace("\\", "/")
     target = cv2.imread(ori)
     target = cv2.resize(target, (1024, 1024), interpolation=cv2.INTER_NEAREST)
     target = cv2.flip(target,flipCode=1)

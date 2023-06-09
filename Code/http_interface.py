@@ -16,7 +16,30 @@ def readjson(file):
 def writejson(file, write_dict):
     with open(file, "w", encoding="utf-8") as dump_f:
         json.dump(write_dict, dump_f, ensure_ascii=False)
+class segmentAllInterface:
+    def __init__(self,rfolder) -> None:
+        config_file = os.path.join(rfolder,"config_test.json")
+        load_dict = readjson(config_file)['segmentAll']
+        self.url = load_dict["url"]
+        self.rfolder = rfolder
+    def request_faceParsing(self, reqCode, mode, imgB64, point_coords, point_labels, is_test=False):
+        url = f"{self.url}/{mode}"
+        print(url,reqCode)
+        post_data = {"reqCode": reqCode,  "imgFile": imgB64, "point_coords": point_coords.tolist(), "point_labels": point_labels}
 
+        if is_test:
+            post_data['is_test']=is_test
+        res = requests.post(url=url, data=json.dumps(post_data))
+        result = json.loads(res.content)
+        if (result["error"] == 0):
+            # parts = result["detected_part"]
+            masks = result['masks']
+            os.makedirs(f"{self.rfolder}/cache",exist_ok=True)
+            # parsing = base642cvmat(parsing)
+            return np.array(masks)
+        else:
+            print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
+            return None,None,None
 class faceParsingInterface:
     def __init__(self,rfolder) -> None:
         config_file = os.path.join(rfolder,"config_test.json")

@@ -85,7 +85,10 @@ class strand_loader(base_loader):
 
 
     def generate_random_root(self):
-
+        path = os.path.join(self.root, self.opt.test_file)
+        self.gt_orientation = get_ground_truth_3D_ori(path, False, self.opt.growInv)[None]
+        if self.opt.Bidirectional_growth:
+            self.num_strands=self.opt.num_root
 
         occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
         occ=(occ>0).astype(np.float32)
