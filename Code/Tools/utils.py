@@ -1076,9 +1076,9 @@ def delete_point_out_ori(mask,strands):
         if count>2:
             segments.append(count)
             all_points.append(points)
-        # else:
-        #     segments.append(count)
-        #     all_points.append(points)
+        else:
+            segments.append(count)
+            all_points.append(points)
     return all_points,segments
 
 
@@ -1123,13 +1123,15 @@ def concat_strands(strands1,strands2,segment1,segment2,Bidirectional_growth=Fals
             # print(strands2[i][-1])
             # if strands2[i][-1][1]>36*mul:
             #     continue
-            final_strand.extend(strands2[i][::-1])
-            final_strand.extend(strands1[i])
-            final_segment.append(segment1[i] + segment2[i])
+            if segment1[i] + segment2[i]>1:
+                final_strand.extend(strands2[i][::-1])
+                final_strand.extend(strands1[i])
+                final_segment.append(segment1[i] + segment2[i])
     else:
         for i in range(len(strands1)):
-            final_strand.extend(strands1[i])
-        final_segment = segment1
+            if segment1[i]>2:
+                final_strand.extend(strands1[i])
+                final_segment.append(segment1[i])
 
     return final_strand,final_segment
 

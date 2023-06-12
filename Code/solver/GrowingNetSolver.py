@@ -304,13 +304,13 @@ class GrowingNetSolver(BaseSolver):
         write_strand(final_strand_del_by_ori, self.opt, final_segment, 'ori')
         # write_strand(final_strand_del_by_label, self.opt, final_segment_label, 'label')
     def generate_random_root_from_roots(self):
-        roots1 = self.roots.astype('int')
-        occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
-        occ=(occ>0).astype(np.float32)
+        # roots1 = self.roots.astype('int')
+        # occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
+        # occ=(occ>0).astype(np.float32)
         
-        occ1 = occ[roots1[:,2],roots1[:,1],roots1[:,0]]
-        sample_index = np.where(occ1>0)
-        random_points = self.roots[sample_index]
+        # occ1 = occ[roots1[:,2],roots1[:,1],roots1[:,0]]
+        # sample_index = np.where(occ1>0)
+        # random_points = self.roots[sample_index]
         random_points = self.roots
         
         # random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]

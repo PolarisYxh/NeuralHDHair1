@@ -3,6 +3,11 @@ import json
 import numpy as np
 from .file_io import *
 from skimage import transform
+def set_bgcolor():
+    js = {"backgroundColor": [255,255,255,255]}
+    ret = requests.post(f"http://127.0.0.1:11111",data=json.dumps(js))
+    if "完毕" not in ret.text:
+        print(ret.text)
 def reset():
     ret = requests.get(f"http://127.0.0.1:11111/?type=revert&gender=male")
     if "完毕" not in ret.text:
@@ -16,6 +21,7 @@ def trans_hair(points,segments,num=100):
         "name": "hair",
         "gender": "male",
         "hairType":"lines",#"quads"
+        "hairColor": [255,128,0,255],
         "hairWidth":0.0005,
     }
     js['vertices']=points.reshape((-1)).tolist()
@@ -37,6 +43,7 @@ def segment_trans(segments,points_num):
 if __name__=="__main__":
     data_dir = "/home/yxh/Documents/company/strandhair/hair/"
     files = os.listdir(data_dir)
+    set_bgcolor()
     for file in files:
         # file = "strands00184.hair"
         reset()

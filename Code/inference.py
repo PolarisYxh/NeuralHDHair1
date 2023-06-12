@@ -33,8 +33,8 @@ class strand_inference:
         self.iter[opt.model_name] = opt.which_iter
         opt.check_name="2023-05-11_bust_prev3"
         opt.condition=True
-        opt.num_root = 5000
-        opt.Bidirectional_growth = False
+        opt.num_root = 10000
+        opt.Bidirectional_growth = True
         opt.growInv=False
         self.growing_solver = GrowingNetSolver()
         self.growing_solver.initialize(opt)
@@ -98,11 +98,12 @@ if __name__=="__main__":
     # roots = transform.matrix_transform(roots,m.params)
     # trans_hair(roots,2)
     gender = ['female','male']
+    set_bgcolor()
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[:]):
-            # name = "8_f.png"
+        for name in tqdm(file_names[2:]):
+            # name = "Screenshot from 2023-03-15 15-36-32_f.png"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
             hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)))
