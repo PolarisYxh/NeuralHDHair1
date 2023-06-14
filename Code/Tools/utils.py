@@ -1434,7 +1434,7 @@ def get_Bust(dir,image,image_size,flip=False):
 
     label_path = os.path.join(dir, 'mask.png')
     Bust_path=dir.split('data')[0]
-    Bust_path=os.path.join(Bust_path,'data/HairStrand/Bust')
+    Bust_path=os.path.join(Bust_path,'data/Bust')
     ### use bust with different size to adapt different faces
     # if os.path.exists(os.path.join(dir,'trans.txt')):
 
@@ -1490,7 +1490,7 @@ def get_Bust(dir,image,image_size,flip=False):
     # label=torch.where(image[:,0:2,...]!=0,torch.ones_like(image[:,0:2,...]),torch.zeros_like(image[:,0:2,...]))
     Bust = torch.unsqueeze(Bust, 0)#人体渲染图
     image[:,0:2,...]=torch.where(label[:,0:2,...]==1,image[:,0:2,...],Bust[:,0:2,...])
-    save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),dir.split('/')[-1]+'.png')
+    # save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),dir.split('/')[-1]+'.png')
     if not os.path.exists(os.path.join(dir, 'trans.txt')):
         save_image(torch.cat([image, torch.zeros(1, 1, image_size, image_size)], dim=1)[:, :3, ...], 'test1.png')
     # else:

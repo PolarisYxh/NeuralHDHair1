@@ -9,9 +9,9 @@
             "type": "python",
             "request": "launch",
             //for train spat-net
-            // "args": ["--name=2023-05-25_bust", "--model_name=HairSpatNet", "--no_use_depth", "--no_use_L","--gpu_ids=2", "--print_freq=10", "--display_freq=10", "--batch_size=1","--save_latest_freq=5000","--lr_update_freq=5000","--lr=0.0001","--strand_dir", "data/Train_input","--continue_train", "--check_name=2023-04-17_bust","--which_iter=1730000","--blur_ori"],//"--continue_train", "--check_name=2023-04-07_bust","--which_iter=147","../../../data/HairStrand/NeuralHDHairData"
+            "args": ["--name=2023-05-25_bust_test", "--model_name=HairSpatNet", "--no_use_depth", "--no_use_L","--gpu_ids=0", "--print_freq=10", "--display_freq=10", "--batch_size=1","--save_latest_freq=5000","--lr_update_freq=5000","--lr=0.0001","--strand_dir", "data/Train_input","--continue_train", "--check_name=2023-05-25_bust","--which_iter=885000","--blur_ori"],//"--continue_train", "--check_name=2023-04-07_bust","--which_iter=147","../../../data/HairStrand/NeuralHDHairData"
             //for test run test.py and visualize spat-net，run batch_test.py or 
-            "args": ["--name=2023-04-07_bust_test1", "--model_name=HairSpatNet", "--test_file","strands00001_v1", "--save_dir=data/Train_input","--blur_ori", "--no_use_depth", "--no_use_L", "--gpu_ids=0", "--batch_size=1","--continue_train","--which_iter=885000","--check_name=2023-05-25_bust"],
+            // "args": ["--name=2023-04-07_bust_test1", "--model_name=HairSpatNet", "--test_file","strands00001_v1", "--save_dir=data/Train_input","--blur_ori", "--no_use_depth", "--no_use_L", "--gpu_ids=0", "--batch_size=1","--continue_train","--which_iter=885000","--check_name=2023-05-25_bust"],
             //for train High-resolution-net
             // "args":["--name=2023-03-29_bust", "--model_name=HairModelingHD", "--blur_ori", "--no_use_depth",  "--gpu_ids=0", "--batch_size=1","--no_use_pretrain"],
             //for train growing net
