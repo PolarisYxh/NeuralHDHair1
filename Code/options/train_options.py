@@ -30,6 +30,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--which_iter',type=str,default='latest')
 
         parser.add_argument('--pred_label',action='store_true')
+        parser.add_argument('--is_rot',action='store_true')
 
         parser.set_defaults(train_flow=False)
 

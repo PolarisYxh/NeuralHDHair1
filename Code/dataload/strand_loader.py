@@ -27,7 +27,7 @@ class strand_loader(base_loader):
 
     def generate_corpus(self):
         # exclude the tail, to do improve this
-        self.all_data = get_all_the_data(self.root)
+        self.all_data = get_all_the_data(self.root,self.opt.is_rot)
         self.train_corpus=self.all_data[:-self.num_of_val]
 
         self.val_corpus = self.train_corpus[-self.num_of_val:]

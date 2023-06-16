@@ -17,7 +17,7 @@ gridOrg = np.array([-0.65, -0.65, -0.4875], dtype=np.float32)
 
 
 def get_depth(d,image_size):
-    path=os.path.join(d,'hair_depth.png')
+    path=os.path.join(d,'hair_depth1.png')
     # print(path)
     if not os.path.exists(path):
         out=np.zeros((image_size,image_size,1))
@@ -529,7 +529,7 @@ def get_all_the_videos(dirs, interval=-1):
 
     return videos
 
-def get_all_the_data(dirs):
+def get_all_the_data(dirs,is_rot=False):
     data=[]
     files=os.listdir(dirs)
     files=sorted(files)
@@ -548,6 +548,9 @@ def get_all_the_data(dirs):
     #         data.append(os.path.join(dirs,file))
     #Delete data with number greater than 600
     for file in files:
+        if is_rot==False:
+            if "_v" in file:
+                continue
         data.append(os.path.join(dirs,file))
         # if int(file[2:])>600:
         #     continue
