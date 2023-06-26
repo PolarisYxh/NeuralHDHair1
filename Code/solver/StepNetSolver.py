@@ -143,6 +143,7 @@ class StepNetSolver(BaseSolver):
                 for i, datas in enumerate(test_dataloader):
                     self.init_losses()
                     input,gt_feat,gt_sum,target = self.preprocess_input(datas)
+                    input,gt_feat,gt_sum,target = input[None],gt_feat[None],gt_sum[None],target[None]
                     out_img = self.model(input)
                     
                     self.G_loss["test_loss"] = self.crit_vgg(out_img, gt_feat, target_is_features=True)

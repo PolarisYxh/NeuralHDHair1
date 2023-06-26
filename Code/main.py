@@ -22,10 +22,10 @@ if __name__ == '__main__':
     elif opt.model_name=='HairModelingHD':
         g_slover=HairModelingHDSolver()
     elif opt.model_name=="StepNet":
-        # opt.isTrain=True
+        opt.isTrain=False
         test_dataloader=data_loader(opt)
         g_slover=StepNetSolver()
-        # opt.isTrain=True
+        opt.isTrain=True
     g_slover.initialize(opt)
     if opt.model_name=="StepNet":
         g_slover.train(iter_counter,dataloader,test_dataloader,visualizer)

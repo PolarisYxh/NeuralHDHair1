@@ -31,7 +31,7 @@ class step_loader(base_loader):
         device = torch.device("cuda") if torch.cuda.is_available() and len(self.opt.gpu_ids)>0 else torch.device("cpu")
         crit_vgg = VGGLoss(model='vgg19', gpu_ids = self.opt.gpu_ids, layer=35)
         random.shuffle(self.datas)
-        for x in self.datas[:2]:
+        for x in self.datas[:]:
             target=cv2.imread(os.path.join(self.root,"strand_map",x))#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
             # TODO:两种方式得到的segment图不太一样，哪个比较好 后续进行实验
             target0=cv2.resize(target, (256, 256))# TODO: size大小到底是多少
