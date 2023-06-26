@@ -34,6 +34,29 @@ def trans_hair(points,segments,num=100):
     ret = requests.post(f"http://127.0.0.1:11111",data=json.dumps(js))
     if "完毕" not in ret.text:
         print(ret.text)
+def set_camera(ang_y):
+    js={
+        "type": "transform",
+        "name": "camera",
+        "position": {
+            "x": 0.0,#向右-0.3
+            "y": 0.0,#向下
+            "z": 0.0#屏幕向外方向-1.0
+        },
+        "rotation": {
+            "x": 0,
+            "y": ang_y,
+            "z": 0.0
+        },
+        "scale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    }    
+    ret = requests.post(f"http://127.0.0.1:11111",data=json.dumps(js))
+    if "完毕" not in ret.text:
+        print(ret.text)
 def segment_trans(segments,points_num):
     last = segments[:-1]
     aft = segments[1:]

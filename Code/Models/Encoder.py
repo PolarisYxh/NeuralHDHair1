@@ -23,6 +23,37 @@ class OriEncoder(nn.Module):
 
 
 class UnetEncoder(nn.Module):
+#             Layer (type)               Output Shape         Param #
+# ================================================================
+#          ZeroPad2d-1          [-1, 2, 258, 258]               0
+#             Conv2d-2         [-1, 32, 128, 128]             608
+#     InstanceNorm2d-3         [-1, 32, 128, 128]               0
+#          LeakyReLU-4         [-1, 32, 128, 128]               0
+#          ConvBlock-5         [-1, 32, 128, 128]               0
+#          ZeroPad2d-6         [-1, 32, 130, 130]               0
+#             Conv2d-7           [-1, 64, 64, 64]          18,496
+#     InstanceNorm2d-8           [-1, 64, 64, 64]               0
+#          LeakyReLU-9           [-1, 64, 64, 64]               0
+#         ConvBlock-10           [-1, 64, 64, 64]               0
+#         ZeroPad2d-11           [-1, 64, 66, 66]               0
+#            Conv2d-12          [-1, 128, 32, 32]          73,856
+#    InstanceNorm2d-13          [-1, 128, 32, 32]               0
+#         LeakyReLU-14          [-1, 128, 32, 32]               0
+#         ConvBlock-15          [-1, 128, 32, 32]               0
+#         ZeroPad2d-16          [-1, 128, 34, 34]               0
+#            Conv2d-17          [-1, 256, 16, 16]         295,168
+#    InstanceNorm2d-18          [-1, 256, 16, 16]               0
+#         LeakyReLU-19          [-1, 256, 16, 16]               0
+#         ConvBlock-20          [-1, 256, 16, 16]               0
+#         ZeroPad2d-21          [-1, 256, 18, 18]               0
+#            Conv2d-22            [-1, 256, 8, 8]         590,080
+#    InstanceNorm2d-23            [-1, 256, 8, 8]               0
+#         LeakyReLU-24            [-1, 256, 8, 8]               0
+#         ConvBlock-25            [-1, 256, 8, 8]               0
+# ================================================================
+# Total params: 978,208
+# Trainable params: 978,208
+# Non-trainable params: 0
     def __init__(self,n_layers,in_cha,min_cha,max_cha,kernel_size=3,stride=2,padding=1,norm='none',activation='none'):
         super().__init__()
         self.down1=ConvBlock(in_cha,min_cha,kernel_size=kernel_size,stride=stride,padding=padding,norm='in',activation=activation)

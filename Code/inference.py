@@ -29,11 +29,11 @@ class strand_inference:
         
         opt.model_name="GrowingNet"
         opt.save_root="checkpoints/GrowingNet"
-        opt.which_iter=690000
+        opt.which_iter=1200000
         self.iter[opt.model_name] = opt.which_iter
         opt.check_name="2023-05-11_bust_prev3"
         opt.condition=True
-        opt.num_root = 10000
+        opt.num_root = 7500
         opt.Bidirectional_growth = True
         opt.growInv=False
         self.growing_solver = GrowingNetSolver()
@@ -56,15 +56,17 @@ class strand_inference:
         # self.hd_solver=HairModelingHDSolver()
         # self.hd_solver.initialize(opt)
         
-    def inference(self,image,gender="" ,name=""):
-        ori2D,_ = self.img_filter.pyfilter2neuralhd(image,gender,name)
+    def inference(self,image,gender="" ,name="",use_gt=False):
+        reset()
+        # set_camera()
+        ori2D,_ = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
         # ori2D = image
         orientation = self.spat_solver.inference(ori2D)
         # draw_arrows_by_projection1(os.path.join("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/","DB1"),self.iter["GrowingNet"],draw_occ=True,hair_ori=orientation)
 
         points,segments = self.growing_solver.inference(orientation)
         # 打开realistic-exe-linux项目可执行文件进行渲染
-        reset()
+        
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
         m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
         points=transform.matrix_transform(points,m.params)
@@ -73,7 +75,43 @@ class strand_inference:
         points = np.array(points).reshape([-1,3])
         trans_hair(points,segments)
         time.sleep(1)
-        render(f"/home/yxh/Documents/company/NeuralHDHair/data/test/{name.split('.')[0]}_2.png")
+        save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
+        if use_gt:
+            render(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"),img)
+            set_camera(30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"),img)
+            set_camera(-30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"),img)
+        else:
+            render(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1.png"),img)
+            set_camera(30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_2.png"),img)
+            set_camera(-30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
         
 if __name__=="__main__":
     # reset()
@@ -96,15 +134,18 @@ if __name__=="__main__":
     # # scipy.io.savemat("roots1.mat", {"roots":roots})
     # m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
     # roots = transform.matrix_transform(roots,m.params)
-    # trans_hair(roots,2)
+    # trans_hair(roots,2)  
     gender = ['female','male']
     set_bgcolor()
+    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)))
+    save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
+        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/img"
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[2:]):
-            # name = "Screenshot from 2023-03-15 15-36-32_f.png"
+        for name in tqdm(file_names[16:]):
+            # name = "10_f.png"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
-            hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)))
-            hair_infe.inference(img,g,name)
+            cv2.imwrite(os.path.join(save_path, name),img)
+            hair_infe.inference(img,g,name,use_gt=True)

@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 from Models.normalization import instance_norm_video
 import math
 from torchvision.utils import save_image
-
+import json
 stepInv = 1. / 0.01015625
 gridOrg = np.array([-0.65, -0.65, -0.4875], dtype=np.float32)
 
@@ -558,8 +558,18 @@ def get_all_the_data(dirs,is_rot=False):
         #     data.append(os.path.join(dirs,file))
     print("num of the strand model:{}".format(len(data)))
     return data
-
-
+def get_all_step_data(dirs):
+    data=[]
+    files=os.listdir(dirs)
+    files=sorted(files)
+    for file in files:
+        data.append(os.path.join(dirs,file))
+    print("num of the strand model:{}".format(len(data)))
+    return data
+def read_json(file_name):
+    with open(file_name,'r') as f:
+        x = json.load(f)
+    return x
 
 def mkdirs(paths):
     if isinstance(paths, list) and not isinstance(paths, str):

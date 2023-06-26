@@ -4,6 +4,7 @@ from options.train_options import TrainOptions
 from solver.GrowingNetSolver import GrowingNetSolver
 from solver.HairSpatNetSolver import HairSpatNetSolver
 from solver.HairModelingHDSolver import HairModelingHDSolver
+from solver.StepNetSolver import StepNetSolver
 from dataload import data_loader
 import os
 if __name__ == '__main__':
@@ -20,5 +21,13 @@ if __name__ == '__main__':
         g_slover = HairSpatNetSolver()
     elif opt.model_name=='HairModelingHD':
         g_slover=HairModelingHDSolver()
+    elif opt.model_name=="StepNet":
+        # opt.isTrain=True
+        test_dataloader=data_loader(opt)
+        g_slover=StepNetSolver()
+        # opt.isTrain=True
     g_slover.initialize(opt)
-    g_slover.train(iter_counter,dataloader,visualizer)
+    if opt.model_name=="StepNet":
+        g_slover.train(iter_counter,dataloader,test_dataloader,visualizer)
+    else:
+        g_slover.train(iter_counter,dataloader,visualizer)
