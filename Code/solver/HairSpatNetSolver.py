@@ -253,7 +253,7 @@ class HairSpatNetSolver(BaseSolver):
 
     def update_learning_rate(self, epoch):
         if epoch % self.opt.lr_update_freq == 0 and epoch != 0:
-            self.learning_rate = self.learning_rate // 2
+            self.learning_rate = self.learning_rate / 2
 
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = self.learning_rate

@@ -107,7 +107,7 @@ class StepNetSolver(BaseSolver):
     def train(self,iter_counter,dataloader,test_dataloader,visualizer):#单张图loss最小0.040
         for epoch in iter_counter.training_epochs():
             iter_counter.record_epoch_start(epoch)
-            self.model.train()
+            # self.model.train()
             for i, datas in enumerate(dataloader):
                 self.init_losses()
                 iter_counter.record_one_iteration()
@@ -138,7 +138,7 @@ class StepNetSolver(BaseSolver):
                     iter_counter.record_current_iter()
             self.update_learning_rate(epoch)
             iter_counter.record_epoch_end()
-            self.model.eval()
+            # self.model.eval()
             with torch.no_grad():
                 for i, datas in enumerate(test_dataloader):
                     self.init_losses()
@@ -224,7 +224,7 @@ class StepNetSolver(BaseSolver):
 
     def update_learning_rate(self, epoch):
         if epoch % self.opt.lr_update_freq == 0 and epoch != 0:
-            self.learning_rate = self.learning_rate // 2
+            self.learning_rate = self.learning_rate / 2
 
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = self.learning_rate

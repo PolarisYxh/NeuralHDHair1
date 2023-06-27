@@ -184,7 +184,7 @@ class HairModelingHDSolver(BaseSolver):
 
     def update_learning_rate(self, epoch):
         if epoch % 30 == 0 and epoch != 0:
-            self.learning_rate = self.learning_rate // 2
+            self.learning_rate = self.learning_rate / 2
 
         for param_group_local in self.optimizer_local.param_groups:
             param_group_local['lr'] = self.learning_rate
