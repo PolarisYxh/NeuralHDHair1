@@ -138,7 +138,7 @@ class StepNetSolver(BaseSolver):
                     iter_counter.record_current_iter()
             self.update_learning_rate(epoch)
             iter_counter.record_epoch_end()
-            # self.model.eval()
+            self.model.eval()
             with torch.no_grad():
                 for i, datas in enumerate(test_dataloader):
                     self.init_losses()
@@ -176,37 +176,19 @@ class StepNetSolver(BaseSolver):
             ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
             
     def inference(self,image):
+        self.model.eval()
         with torch.no_grad():
-            #以下相当于dataloader.generate_test_data()
-            image=trans_image(image, self.opt.image_size)#相当于get_image
-            image=torch.from_numpy(image)
-            image=image.permute(2,0,1)
-            Ori2D = image.clone()
-            # image = get_Bust("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1", image, self.opt.image_size)#TODO
-            image = get_Bust1(self.opt.current_path,image,self.opt.image_size)
-            image = torch.unsqueeze(image, 0)
-            Ori2D=torch.unsqueeze(Ori2D,0)
-            # 以下相当于self.preprocess_input1
+            image= cv2.resize(image,(256,256)).transpose([2,0,1])
+            image=torch.from_numpy(image) / 255
             image = image.type(torch.float)
-            Ori2D = Ori2D.type(torch.float)
             if self.use_gpu():
                 image = image.cuda()
-                Ori2D = Ori2D.cuda()
-
-            out_ori, out_occ = self.model.test(image,Ori2D)
             
-            out_occ[out_occ>=0.2]=1
-            out_occ[out_occ<0.2]=0
-            pred_ori=out_ori*out_occ
-            pred_ori=pred_ori.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
-            pred_ori=pred_ori.cpu().numpy()
-            pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
-            # 以下为save_ori_as_mat所做的操作
-            # pred_ori=pred_ori * np.array([1, -1, -1])
-            # pred_ori=pred_ori.transpose(0,2,3,4,1)
-            # _,H,W,C,D=pred_ori.shape[:]
-            # pred_ori=pred_ori.reshape(H ,W,C*D)
-            return pred_ori
+            image = image[None]
+            out_img = self.model(image)
+            out_img[0] = out_img[0].permute([1,2,0])
+            save_image(out_img[0],"test_step_display.png")
+            return out_img
     def loss_backward(self, losses, optimizer,retain=False):
         optimizer.zero_grad()
         loss = sum(losses.values()).mean()
