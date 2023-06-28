@@ -24,7 +24,9 @@ class filter_crop:
         #pyfilter 输出的： B:第1通道，（0,1）表示（向右，向左）；G:第二通道，（0,1）表示（，向下）
         #neuralhd R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
         self.use_gt=use_gt
-        crop_image,mask,gt,gt_parsing = self.get_hair_seg(img,gender,image_name)
+        crop_image,mask = self.get_hair_seg(img,gender,image_name)
+        if self.use_gt:
+            return crop_image,mask
         mask = cv2.resize(mask,(512,512))
         crop_image= cv2.resize(crop_image,(512,512))
         ori2D=pyfilter.GetImage(crop_image)#B:第1通道，（0,1）表示（向右，向左）；G:第二通道，（0,1）表示(向下）
@@ -43,10 +45,7 @@ class filter_crop:
         cv2.imwrite(os.path.join(self.saveFolder,gender+"_out",image_name[:-4]+"_mask.png"),ori2D)
         # cv2.imshow("2",ori2D)
         # cv2.waitKey()
-        if self.use_gt:
-            return gt,gt_parsing
-        else:
-            return ori2D,mask
+        return ori2D,mask
         
     def get_hair_seg(self,img,gender,image_name):
         faces, frames, framesForHair = self.insight_face_info.get_faces(img, image_name)
@@ -83,7 +82,7 @@ class filter_crop:
                                 M, (640, 640),
                                 borderValue=0.0)
         if self.use_gt:
-            gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/test/strand_map/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
+            gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
             # TODO:两种方式得到的segment图不太一样，seg中的对散发也能分割。哪个比较好 后续进行实验
             gt_parsing=gt[:,:,2].copy()
             gt_parsing[gt_parsing!=255]=0
@@ -105,12 +104,13 @@ class filter_crop:
             gt_parsing = cv2.warpAffine(gt_parsing,
                                     M, (640, 640),
                                     borderValue=0.0)
+            return gt,gt_parsing
         aligned_parsing[(aligned_parsing!=0)]=255
         aligned[aligned_parsing==0]=[0,0,0]
         # cv2.imwrite(os.path.join(self.saveFolder,gender+"_out",image_name[:-4]+"_parse.png"),save_parsing)
         # cv2.imshow("1",save_parsing)
         # cv2.waitKey()
-        return aligned,aligned_parsing,gt,gt_parsing
+        return aligned,aligned_parsing
 if __name__=="__main__":
     gender = ['male','female']
     test_dir="/home/yxh/Documents/company/NeuralHDHair/data/test"

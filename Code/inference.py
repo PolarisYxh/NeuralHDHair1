@@ -10,6 +10,7 @@ import cv2
 from Tools.resample import resample,process_list
 import time
 from tqdm import tqdm
+from Tools.file_io import *
 class strand_inference:
     def __init__(self,rFolder) -> None:
         self.img_filter = filter_crop("/home/yxh/Documents/company/NeuralHDHair/Code","/home/yxh/Documents/company/NeuralHDHair/data/test")
@@ -51,7 +52,7 @@ class strand_inference:
         # opt.check_name="2023-05-25_bust"
         self.spat_solver = HairSpatNetSolver()
         self.spat_solver.initialize(opt)
-        
+        self.sample_num=100
         # opt.model_name=='HairModeling'
         # self.hd_solver=HairModelingHDSolver()
         # self.hd_solver.initialize(opt)
@@ -71,9 +72,9 @@ class strand_inference:
         m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
         points=transform.matrix_transform(points,m.params)
         # points,segments=resample(points,segments)
-        points = process_list(points,segments)
+        points = process_list(points,segments,self.sample_num)
         points = np.array(points).reshape([-1,3])
-        trans_hair(points,segments)
+        trans_hair(points,segments,self.sample_num)
         time.sleep(1)
         save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
         if use_gt:
@@ -141,11 +142,11 @@ if __name__=="__main__":
     save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
-        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/img"
+        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img"
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[16:]):
+        for name in tqdm(file_names[:]):#:32
             # name = "10_f.png"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
             cv2.imwrite(os.path.join(save_path, name),img)
-            hair_infe.inference(img,g,name,use_gt=True)
+            hair_infe.inference(img,g,name,use_gt=False)

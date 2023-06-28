@@ -47,12 +47,12 @@ def resample(strands,segments):
         new_segments.append(new_strand.shape[0])
     return new_strands[1:],new_segments
 import concurrent
-def resample_same_concurrent(strand):
+def resample_same_concurrent(strand,num):
     # new_strand = resample_same_points(strands[start:start+segments[i]], num)
     # num_points = segments[i]
     knots = np.linspace(0, 1, len(strand))
     spline = interpolate.make_interp_spline(knots, strand, k=2)
-    t=np.linspace(0, 1, 100)
+    t=np.linspace(0, 1, num)
     new_points = []
     for t1 in t:
         # evaluate spline
@@ -62,10 +62,12 @@ def resample_same_concurrent(strand):
     return new_strand
 def process_list(strands,segments,num=100):
     new_strands=[]
+    nums = []
     start =0
     for i in range(0,len(segments)):
         new_strands.append(strands[start:start+segments[i]])
         start=start+segments[i]
+        nums.append(num)
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        results = list(executor.map(resample_same_concurrent, new_strands))
+        results = list(executor.map(resample_same_concurrent, new_strands,nums))
     return results
