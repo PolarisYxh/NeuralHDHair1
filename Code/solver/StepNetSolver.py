@@ -108,7 +108,7 @@ class StepNetSolver(BaseSolver):
     def train(self,iter_counter,dataloader,test_dataloader,visualizer):#单张图loss最小0.040
         for epoch in iter_counter.training_epochs():
             iter_counter.record_epoch_start(epoch)
-            # self.model.train()
+            self.model.train()
             for i, datas in enumerate(dataloader):
                 self.init_losses()
                 iter_counter.record_one_iteration()
@@ -147,7 +147,7 @@ class StepNetSolver(BaseSolver):
                     input,gt_feat,gt_sum,target = input[None],gt_feat[None],gt_sum[None],target[None]
                     out_img = self.model(input)
                     
-                    self.G_loss["test_loss"] = self.crit_vgg(out_img, gt_feat, target_is_features=True)
+                    self.G_loss["test_loss"] = 0.1*self.crit_vgg(out_img, gt_feat, target_is_features=True)
                     self.G_loss["test_loss"] += self.L1loss(out_img, target)/(3*gt_sum.squeeze().sum())
                     visualizer.board_current_errors(self.G_loss)
                     if i==0:
