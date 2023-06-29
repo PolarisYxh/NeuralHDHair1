@@ -18,7 +18,9 @@ class step_inference:
         gpu_str = ','.join(gpu_str)
         os.environ['CUDA_VISIBLE_DEVICES'] = gpu_str
         opt.current_path = rFolder
-        opt.name="2023-06-27"
+        opt.name="2023-05-06_bust_test"
+        
+        opt.check_name="2023-06-27"
         opt.save_dir="data/Train_input"
         opt.is_Train = False
         opt.model_name="StepNet"
@@ -32,15 +34,15 @@ class step_inference:
         orientation = self.step_solver.inference(image)
         
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
-        save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
-        if use_gt:
-            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
-            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"),img)
-        else:
-            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
-            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1.png"),img)
+        # save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
+        # if use_gt:
+        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
+        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"),img)
+        # else:
+        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
+        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1.png"),img)
         
 if __name__=="__main__":
     # reset()

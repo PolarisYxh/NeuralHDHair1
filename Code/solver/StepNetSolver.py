@@ -48,9 +48,10 @@ class StepNetSolver(BaseSolver):
         if opt.continue_train or opt.isTrain is False:
             path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
             if os.path.exists(path):
-                self.net = self.load_network(self.net, 'HairSpatNet', opt.which_iter, opt)
+                self.net = self.load_network(self.net, 'StepNet', opt.which_iter, opt)
             else:
                 print(path+" not exists!")
+                exit()
         else:
             print(" Training from Scratch! ")
             self.net.init_weights(opt.init_type, opt.init_variance)
@@ -186,8 +187,10 @@ class StepNetSolver(BaseSolver):
             
             image = image[None]
             out_img = self.model(image)
-            out_img[0] = out_img[0].permute([1,2,0])
-            save_image(out_img[0],"test_step_display.png")
+            img = out_img[0][[2, 1, 0], :, :,]#不可导，使用矩阵乘法进行通道重排才可导
+            # img = img.cpu().numpy().transpose([1,2,0])
+            # cv2.imwrite("test_step_display.png",img)
+            save_image(img,"test_step_display.png")
             return out_img
     def loss_backward(self, losses, optimizer,retain=False):
         optimizer.zero_grad()

@@ -115,6 +115,10 @@ class strand_inference:
             cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
         
 if __name__=="__main__":
+    gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/10_f.png")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
+    # TODO:两种方式得到的segment图不太一样，seg中的对散发也能分割。哪个比较好 后续进行实验
+    cv2.imshow("1",gt)
+    cv2.waitKey()
     # reset()
     # segments,points = readhair("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/strands00001/hair_delete.hair")
     # import pickle
@@ -149,4 +153,4 @@ if __name__=="__main__":
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
             cv2.imwrite(os.path.join(save_path, name),img)
-            hair_infe.inference(img,g,name,use_gt=False)
+            hair_infe.inference(img,g,name,use_gt=True)

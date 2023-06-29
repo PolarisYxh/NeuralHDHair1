@@ -21,7 +21,7 @@ class filter_crop:
         #mean_landmark.json get from data/bust/color5.png,mean_landmark1.json from data/bust/body_0.png
         self.mean_lms = np.array(readjson("mean_landmark1.json")['lms_3d'])
     def pyfilter2neuralhd(self,img,gender="female",image_name="",use_gt=False):
-        #pyfilter 输出的： B:第1通道，（0,1）表示（向右，向左）；G:第二通道，（0,1）表示（，向下）
+        #pyfilter输出的和hairstep： B:第1通道，（0,1）表示（向右，向左）；G:第二通道，（0,1）表示（，向下）
         #neuralhd R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
         self.use_gt=use_gt
         crop_image,mask = self.get_hair_seg(img,gender,image_name)
