@@ -1,0 +1,16 @@
+{
+    "//": "相对文件所在文件夹的路径",
+    "model_path":"",
+    "cache_path": "cache/",
+    "log_path": "log/",
+    "//": "log记录的方式，0:只保存到文件，1:只显示到终端，2:既显示到终端又保存到文件",
+    "log2type": 2,
+    "//use_gpu":true,
+    "debug":false,
+    "host": "0.0.0.0",
+    "port": 50083,
+    "device":"cuda",
+    "//":"device为cuda时，更改使用的gpu编号，device为cpu不影响",
+    "gpus":"3",
+    "model_type":"vit_h"
+}

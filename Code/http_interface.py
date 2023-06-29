@@ -16,6 +16,30 @@ def readjson(file):
 def writejson(file, write_dict):
     with open(file, "w", encoding="utf-8") as dump_f:
         json.dump(write_dict, dump_f, ensure_ascii=False)
+class HairStepInterface:
+    def __init__(self,rfolder) -> None:
+        config_file = os.path.join(rfolder,"config_test.json")
+        load_dict = readjson(config_file)['HairStep']
+        self.url = load_dict["url"]
+        self.rfolder = rfolder
+    def request_HairStep(self, reqCode, mode, imgB64, is_test=False):
+        url = f"{self.url}/{mode}"
+        print(url,reqCode)
+        post_data = {"reqCode": reqCode,  "imgFile": imgB64}
+
+        if is_test:
+            post_data['is_test']=is_test
+        res = requests.post(url=url, data=json.dumps(post_data))
+        result = json.loads(res.content)
+        if (result["error"] == 0):
+            # parts = result["detected_part"]
+            hair_step = result['step']
+            os.makedirs(f"{self.rfolder}/cache",exist_ok=True)
+            # parsing = base642cvmat(parsing)
+            return np.array(hair_step)
+        else:
+            print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
+            return None,None,None
 class segmentAllInterface:
     def __init__(self,rfolder) -> None:
         config_file = os.path.join(rfolder,"config_test.json")

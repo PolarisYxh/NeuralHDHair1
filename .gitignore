@@ -4,3 +4,4 @@
 /*.jpg
 /data/cache
 /data/test
+*.log*

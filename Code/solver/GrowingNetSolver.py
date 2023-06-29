@@ -367,26 +367,28 @@ class GrowingNetSolver(BaseSolver):
         }
         return return_list
     def inference(self, ori):
-        # ori = scipy.io.loadmat("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1/Ori_gt.mat", verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
-        ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
-        ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
+        self.model.eval()
+        with torch.no_grad():
+            # ori = scipy.io.loadmat("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1/Ori_gt.mat", verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
+            ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+            ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
 
-        transfer = True
-        ori = np.ascontiguousarray(ori)
-        if transfer:
-            gt_orientation= ori*np.array([1,-1,-1])  # scaled
-        else:
-            gt_orientation= ori
-        gt_orientation = gt_orientation[None]
-        self.gt_orientation = gt_orientation
-        if self.opt.Bidirectional_growth:
-            datas=self.generate_random_root()
-        else:
-            datas=self.generate_random_root_from_roots()
-            # datas=self.generate_test_data(self.opt.growInv)
-        final_strand_del_by_ori,final_segment = self.get_pred_strands(datas)
-        
-        final_strand_del_by_ori = transform_Inv(final_strand_del_by_ori)
+            transfer = True
+            ori = np.ascontiguousarray(ori)
+            if transfer:
+                gt_orientation= ori*np.array([1,-1,-1])  # scaled
+            else:
+                gt_orientation= ori
+            gt_orientation = gt_orientation[None]
+            self.gt_orientation = gt_orientation
+            if self.opt.Bidirectional_growth:
+                datas=self.generate_random_root()
+            else:
+                datas=self.generate_random_root_from_roots()
+                # datas=self.generate_test_data(self.opt.growInv)
+            final_strand_del_by_ori,final_segment = self.get_pred_strands(datas)
+            
+            final_strand_del_by_ori = transform_Inv(final_strand_del_by_ori)
         # write_strand(final_strand_del_by_ori, self.opt, final_segment, 'ori')
         return final_strand_del_by_ori,final_segment
         # write_strand(final_strand_del_by_label, self.opt, final_segment_label, 'label')

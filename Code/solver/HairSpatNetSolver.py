@@ -205,6 +205,7 @@ class HairSpatNetSolver(BaseSolver):
             ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
             
     def inference(self,image):
+        self.model.eval()
         with torch.no_grad():
             #以下相当于dataloader.generate_test_data()
             image=trans_image(image, self.opt.image_size)#相当于get_image

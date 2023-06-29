@@ -116,7 +116,7 @@ class StepNetSolver(BaseSolver):
                 
                 out_img = self.model(input)
 
-                self.G_loss["train_loss"] = self.crit_vgg(out_img, gt_feat, target_is_features=True)
+                self.G_loss["train_loss"] = 0.1*self.crit_vgg(out_img, gt_feat, target_is_features=True)
                 self.G_loss["train_loss"] += self.L1loss(out_img, target)/(3*gt_sum.squeeze().sum())
                 
                 self.loss_backward(self.G_loss, self.optimizer,False)
@@ -187,11 +187,11 @@ class StepNetSolver(BaseSolver):
             
             image = image[None]
             out_img = self.model(image)
-            img = out_img[0][[2, 1, 0], :, :,]#不可导，使用矩阵乘法进行通道重排才可导
-            # img = img.cpu().numpy().transpose([1,2,0])
-            # cv2.imwrite("test_step_display.png",img)
-            save_image(img,"test_step_display.png")
-            return out_img
+            # img = out_img[0][[2, 1, 0], :, :,]#不可导，使用矩阵乘法进行通道重排才可导
+            # # img = img.cpu().numpy().transpose([1,2,0])
+            # # cv2.imwrite("test_step_display.png",img)
+            # save_image(img,"test_step_display.png")
+            return out_img[0].permute(1, 2, 0).to("cpu").numpy()
     def loss_backward(self, losses, optimizer,retain=False):
         optimizer.zero_grad()
         loss = sum(losses.values()).mean()

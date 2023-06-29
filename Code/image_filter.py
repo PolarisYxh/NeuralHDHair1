@@ -8,11 +8,15 @@ import pyfilter#have to install apt-get install libopencv-dev==4.2.0 and run in 
 import math
 from skimage import transform as trans
 class filter_crop:
-    def __init__(self,rFolder,saveFolder="") -> None:
+    def __init__(self,rFolder,saveFolder="",use_step=True) -> None:
         self.rFolder = rFolder
         self.saveFolder = saveFolder
         # self.face_seg = faceParsingInterface(rFolder)
-        self.segall = segmentAllInterface(rFolder)
+        self.use_step=use_step
+        if use_step:
+            self.hair_step = HairStepInterface(rFolder)
+        else:
+            self.segall = segmentAllInterface(rFolder)
         try:
             from .get_face_info import get_face_info
         except:
@@ -26,6 +30,9 @@ class filter_crop:
         self.use_gt=use_gt
         crop_image,mask = self.get_hair_seg(img,gender,image_name)
         if self.use_gt:
+            return crop_image,mask
+        if self.use_step:
+            
             return crop_image,mask
         mask = cv2.resize(mask,(512,512))
         crop_image= cv2.resize(crop_image,(512,512))
@@ -70,14 +77,18 @@ class filter_crop:
         # hair_point1 = hair_point1+lms_3d[30]-lms_3d[33]
         # hair_point = [332,152]
         # lms_3d = [325,357]
+        aligned = cv2.warpAffine(framesForHair[0],
+                                M, (640, 640),
+                                borderValue=0.0)
+        if self.use_step:
+            imgB64 = cvmat2base64(aligned)
+            step = self.hair_step.request_HairStep(image_name, 'img', imgB64)
+            return aligned,aligned_parsing
         masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[30][:2]]),[1,0])#
         parsing = np.zeros_like(framesForHair[0][:,:,0])
         parsing[masks] = 255
         save_parsing = np.zeros_like(framesForHair[0])
         save_parsing[masks] = framesForHair[0][masks]
-        aligned = cv2.warpAffine(framesForHair[0],
-                                M, (640, 640),
-                                borderValue=0.0)
         aligned_parsing = cv2.warpAffine(parsing,
                                 M, (640, 640),
                                 borderValue=0.0)
