@@ -160,22 +160,23 @@ class StepNetSolver(BaseSolver):
             
 
     def test(self,dataloader):
+        self.L1loss = torch.nn.L1Loss(reduction='sum')
+        self.crit_vgg = VGGLoss(model='vgg19', gpu_ids=self.opt.gpu_ids, layer=35)
         with torch.no_grad():
-            datas = dataloader.generate_test_data()
-            image, gt_orientation, gt_occ, ori2d = self.preprocess_input1(datas)
-            out_ori, out_occ = self.model.test(image,ori2d)
-            pred_ori=out_ori*gt_occ
-            pred_ori=pred_ori.permute(0,2,3,4,1)
-            pred_ori=pred_ori.cpu().numpy()
-            ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter))
-            
-            out_occ[out_occ>=0.2]=1
-            out_occ[out_occ<0.2]=0
-            pred_ori=out_ori*out_occ
-            pred_ori=pred_ori.permute(0,2,3,4,1)
-            pred_ori=pred_ori.cpu().numpy()
-            ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
-            
+            # datas = dataloader.generate_test_data()
+            self.model.eval()
+            self.loss=[]
+            with torch.no_grad():
+                for i, datas in enumerate(dataloader):
+                    self.init_losses()
+                    input,gt_feat,gt_sum,target = self.preprocess_input(datas)
+                    input,gt_feat,gt_sum,target = input[None],gt_feat[None],gt_sum[None],target[None]
+                    out_img = self.model(input)
+                    save_image(out_img[0],"test_step_display.png")
+                    self.G_loss["test_loss"] = 0.1*self.crit_vgg(out_img, gt_feat, target_is_features=True)
+                    self.G_loss["test_loss"] += self.L1loss(out_img, target)/(3*gt_sum.squeeze().sum())
+                    self.loss.append(self.G_loss["test_loss"])
+                print(f"test_loss:{sum(self.loss)/len(self.loss)}")
     def inference(self,image):
         self.model.eval()
         with torch.no_grad():
@@ -188,9 +189,9 @@ class StepNetSolver(BaseSolver):
             image = image[None]
             out_img = self.model(image)
             # img = out_img[0][[2, 1, 0], :, :,]#不可导，使用矩阵乘法进行通道重排才可导
-            # # img = img.cpu().numpy().transpose([1,2,0])
-            # # cv2.imwrite("test_step_display.png",img)
-            # save_image(img,"test_step_display.png")
+            # img = img.cpu().numpy().transpose([1,2,0])
+            # cv2.imwrite("test_step_display.png",img)
+            save_image(out_img[0][[2,1,0],:,:],"test_step_display.png")
             return out_img[0].permute(1, 2, 0).to("cpu").numpy()
     def loss_backward(self, losses, optimizer,retain=False):
         optimizer.zero_grad()

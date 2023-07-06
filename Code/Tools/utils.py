@@ -1511,6 +1511,31 @@ def get_Bust(dir,image,image_size,flip=False):
 
 
     return image[0]
+def get_Bust2(bust_img,image,image_size,trans=None):
+    transform_list = []
+    transform_list += [transforms.Resize((image_size, image_size))]
+    transform_list += [transforms.ToTensor()]
+    transform_image = transforms.Compose(transform_list)
+    # label = transform_image(label)
+    bust_img = Image.fromarray(bust_img)
+    Bust = transform_image(bust_img)
+    # label = label[0:3]
+    # label[label >= 0.0039] = 1
+    # label[label < 0.0039] = 0
+    # save_image(Bust,'Bust.png')
+
+    image = torch.unsqueeze(image, 0)#方向图
+    # label = torch.unsqueeze(label, 0)#mask
+    label=torch.norm(image,2,dim=1,keepdim=True)
+    label[label >0]=1
+    label = torch.unsqueeze(label, 0)
+    # label=label.repeat(1,2,1,1)
+    # label=torch.where(image[:,0:2,...]!=0,torch.ones_like(image[:,0:2,...]),torch.zeros_like(image[:,0:2,...]))
+    Bust = torch.unsqueeze(Bust, 0)#人体渲染图
+    image[:,0:2,...]=torch.where(label[:,0:2,...]==1,image[:,0:2,...],Bust[:,0:2,...])
+    save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),'display.png')
+    return image[0]
+
 def get_Bust1(Bust_path,image,image_size,trans=None):
     # label_path = os.path.join(dir, 'mask.png')
     # Bust_path=dir.split('data')[0]
@@ -1536,8 +1561,8 @@ def get_Bust1(Bust_path,image,image_size,trans=None):
             randI=random.randint(2,6)
             Bust_path=os.path.join(Bust_path,'color{}.png'.format(randI))
     else:
-        # Bust_path = os.path.join(Bust_path, 'body_0.png')
-        Bust_path = os.path.join(Bust_path, 'color5.png')
+        Bust_path = os.path.join(Bust_path, 'body_0.png')
+        # Bust_path = os.path.join(Bust_path, 'color5.png')
 
     # Bust_path = os.path.join(dir, 'color.png')
 

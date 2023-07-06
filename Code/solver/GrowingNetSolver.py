@@ -52,9 +52,9 @@ class GrowingNetSolver(BaseSolver):
             self.L1loss=torch.nn.L1Loss()
         else:
             # self.roots = load_root(os.path.join(self.opt.current_path,"data/map_roots1024.data"))
-            self.roots = scipy.io.loadmat(os.path.join(self.opt.current_path,"roots2.mat"), \
+            self.roots = scipy.io.loadmat(os.path.join(self.opt.current_path,"roots3.mat"), \
                         verify_compressed_data_integrity=False)['roots']
-            self.roots = self.roots[np.random.randint(0,self.roots.shape[0]-1,size=self.opt.num_root)]
+            # self.roots = self.roots[np.random.randint(0,self.roots.shape[0]-1,size=self.opt.num_root)]
             self.roots=transform(self.roots)
 
     def create_optimizers(self,opt):
@@ -230,10 +230,10 @@ class GrowingNetSolver(BaseSolver):
     def get_pred_strands(self,datas):
         strands, gt_orientation,labels = self.preprocess_input(datas)
 
-        pt_num = self.pt_num//2 #default is self.pt_num-1
 
         with torch.no_grad():
             if self.opt.Bidirectional_growth:
+                pt_num = self.pt_num//2 #default is self.pt_num-1
                 print('begin.....')
                 start = time.time()
                 # wcenters,wlatents=self.model_on_one_gpu.encoder(gt_orientation)
@@ -248,6 +248,7 @@ class GrowingNetSolver(BaseSolver):
                 print('grow cost:', time.time() - start)
 
             else:
+                pt_num = self.pt_num #default is self.pt_num-1
                 out_points_2, labels_2 = self.model(strands,gt_orientation,pt_num,'rnn')
 
 
@@ -304,16 +305,19 @@ class GrowingNetSolver(BaseSolver):
         write_strand(final_strand_del_by_ori, self.opt, final_segment, 'ori')
         # write_strand(final_strand_del_by_label, self.opt, final_segment_label, 'label')
     def generate_random_root_from_roots(self):
-        # roots1 = self.roots.astype('int')
-        # occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
+        roots1 = self.roots.astype('int')
+        occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
         # occ=(occ>0).astype(np.float32)
-        
-        # occ1 = occ[roots1[:,2],roots1[:,1],roots1[:,0]]
-        # sample_index = np.where(occ1>0)
+        occ1 = occ[roots1[:,2],roots1[:,1],roots1[:,0]]
+        sample_index = np.where(occ1>0)
         # random_points = self.roots[sample_index]
-        random_points = self.roots
+        # random_points = random_points[np.random.randint(0,random_points.shape[0]-1,size=self.opt.num_root)]
         
-        # random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]
+        samle_voxel_index= np.unique(roots1[sample_index], axis=0)
+        random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
+        random_points=random_points+np.random.random(random_points.shape[:])[None]
+        
+        # random_points = self.roots
         random_points=random_points[...,None,:]
         self.gt_orientation=torch.from_numpy(self.gt_orientation)
         random_points=torch.from_numpy(random_points)

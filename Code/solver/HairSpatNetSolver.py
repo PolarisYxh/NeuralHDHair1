@@ -204,16 +204,25 @@ class HairSpatNetSolver(BaseSolver):
             pred_ori=pred_ori.cpu().numpy()
             ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
             
-    def inference(self,image):
+    def inference(self,image,use_step,bust=None):
         self.model.eval()
         with torch.no_grad():
             #以下相当于dataloader.generate_test_data()
-            image=trans_image(image, self.opt.image_size)#相当于get_image
+            if not use_step:
+                image=trans_image(image, self.opt.image_size)#相当于get_image
+            else:
+                parse = image[:, :, 2]
+                image=image[:, :, [0, 1]]
+                image=1-image
+                image[np.where(parse<0.8)]=[0,0]
             image=torch.from_numpy(image)
             image=image.permute(2,0,1)
             Ori2D = image.clone()
-            # image = get_Bust("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1", image, self.opt.image_size)#TODO
-            image = get_Bust1(self.opt.current_path,image,self.opt.image_size)
+                # image = get_Bust("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1", image, self.opt.image_size)#TODO
+            if use_step and isinstance(bust,np.ndarray):
+                image = get_Bust2(bust,image,self.opt.image_size)
+            else:
+                image = get_Bust1(self.opt.current_path,image,self.opt.image_size)
             image = torch.unsqueeze(image, 0)
             Ori2D=torch.unsqueeze(Ori2D,0)
             # 以下相当于self.preprocess_input1

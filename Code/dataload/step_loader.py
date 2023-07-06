@@ -34,7 +34,8 @@ class step_loader(base_loader):
         for x in self.datas[:]:
             target=cv2.imread(os.path.join(self.root,"strand_map",x))#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
             # TODO:两种方式得到的segment图不太一样，哪个比较好 后续进行实验
-            target0=cv2.resize(target, (256, 256))# TODO: size大小到底是多少
+            # target0=cv2.resize(target, (256, 256))# TODO: size大小到底是多少
+            target0=target
             # cv2.imshow("1",gt_parsing)
             # cv2.waitKey()
             target0=target0.transpose([2,0,1])
@@ -54,10 +55,12 @@ class step_loader(base_loader):
     def __getitem__(self, index):
         x=self.datas[index]
         input=cv2.imread(os.path.join(self.root,"img",x))
-        input= cv2.resize(input,(256,256)).transpose([2,0,1])
+        # input= cv2.resize(input,(256,256)).transpose([2,0,1])
+        input=input.transpose([2,0,1])
         input=torch.from_numpy(input) / 255
         target=cv2.imread(os.path.join(self.root,"strand_map",x))
-        target= cv2.resize(target,(256,256)).transpose([2,0,1])
+        # target= cv2.resize(target,(256,256)).transpose([2,0,1])
+        target=target.transpose([2,0,1])
         target=torch.from_numpy(target) / 255
         
         return {"input":input,"target":target,"gt_feat":self.train_corpus[index]["gt_feat"],"gt_sum":self.train_corpus[index]["gt_sum"]}

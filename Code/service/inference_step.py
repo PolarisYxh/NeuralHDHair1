@@ -36,7 +36,7 @@ class step_inference:
         
 if __name__=="__main__":
     gender = ['female','male']
-    hair_infe = step_inference(os.path.dirname(os.path.dirname(__file__)))
+    hair_infe = step_inference(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
@@ -47,4 +47,4 @@ if __name__=="__main__":
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
             cv2.imwrite(os.path.join(save_path, name),img)
-            hair_infe.inference(img,name,use_gt=False)
+            hair_infe.inference(img)

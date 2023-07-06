@@ -96,7 +96,7 @@ class get_face_info:
             img0 = cv2.resize(img0,(int(scale*img0.shape[1]), int(scale*img0.shape[0])))
         x = (640-img0.shape[0])//2 if 640-img0.shape[0]>0 else 0
         y = (640-img0.shape[1])//2 if 640-img0.shape[1]>0 else 0
-        img = cv2.copyMakeBorder(img0, x, x, y, y, cv2.BORDER_CONSTANT)
+        img = cv2.copyMakeBorder(img0, x, 640-img0.shape[0]-x, y, 640-img0.shape[1]-y, cv2.BORDER_CONSTANT)
         if self.bInsightFaceLocal:
             self.faces = self.app.get(img)
         else:
@@ -150,8 +150,10 @@ class get_face_info:
                 w, h = (bbox[2] - bbox[0]), (bbox[3] - bbox[1])
                 center = (bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2
                 rotate = 0
-                _scale = 640  / (max(w, h)*2)
+                _scale = 640  / (max(w, h)*3)
                 self.M,frame = transform(center, 640, _scale, 0, img)
+                face.landmark_2d_106_step = trans_points2d(face.landmark_2d_106, self.M).astype('int')
+                face.landmark_3d_68_step = trans_points3d(face.landmark_3d_68, self.M).astype('int')
                 # _scale = 640  / (max(w, h)*3)
                 # self.M,frameForHair = transform(center, 640, _scale, 0, img)
                 frameForHair = img[x:-x,y:-y,:]
@@ -162,10 +164,16 @@ class get_face_info:
                 self.M = trans.SimilarityTransform(scale=scale)
                 face.landmark_2d_106 = trans_points2d(face.landmark_2d_106, self.M.params).astype('int')
                 face.landmark_3d_68 = trans_points3d(face.landmark_3d_68, self.M.params).astype('int')
-                # drawLms(frame, face.landmark_2d_106)
+                x = (640-frameForHair.shape[0])//2 if 640-frameForHair.shape[0]>0 else 0
+                y = (640-frameForHair.shape[1])//2 if 640-frameForHair.shape[1]>0 else 0
+                frameForHair = cv2.copyMakeBorder(frameForHair, x, 640-frameForHair.shape[0]-x, y, 640-frameForHair.shape[1]-y, cv2.BORDER_CONSTANT)
+                face.landmark_2d_106 +=np.array([y,x])
+                face.landmark_3d_68 +=np.array([y,x,0])
+                drawLms(frameForHair, face.landmark_3d_68[:,:2])
                 # drawLms(frameForHair,face.landmark_2d_106)
                 frames.append(frame)
                 framesForHair.append(frameForHair)
+                self.img=frameForHair
                 # cv2.imshow("1",frame)
                 # cv2.waitKey()
             return self.faces,frames,framesForHair
@@ -287,8 +295,9 @@ class get_face_info:
         
         # drawLms(self.img,self.faces[index]["landmark_2d_106"][:,:2].astype('int'),color = [0,0,255])
         delta = landmark3d_align[16,:]-landmark3d_align[0,:]
-        yaw = -np.arctan(delta[2]/delta[0])
+        yaw = -np.arctan(delta[2]/delta[0])#左右
         M_res = angle2matrix([0, 0, 0])
+        # yaw = np.deg2rad(5)
         M1 = angle2matrix([0, yaw, 0])
         landmark3d_align = np.dot(landmark3d_align, M1)
         M_res = np.dot(M_res,M1)
@@ -302,7 +311,8 @@ class get_face_info:
             roll = np.arctan(delta[1]/delta[0])+np.pi
         else:
             roll = np.arctan(delta[1]/delta[0])
-        M2 = angle2matrix([0, 0, roll])
+        # roll=np.deg2rad(0)
+        M2 = angle2matrix([0, 0, roll])#顺逆
         landmark3d_align = np.dot(landmark3d_align, M2)
         M_res = np.dot(M_res,M2)
         ### ransac get pitch 
@@ -312,25 +322,26 @@ class get_face_info:
         face_plane = [31, 32, 33, 34, 35, 48, 49, 50 ,51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63 ,64 ,65 ,66, 67,21,22,20,23]#36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 
         best_eq=plane.leastsquare_fit(landmark3d_align[face_plane,:])
         pitch = np.arctan(best_eq[1]/best_eq[2])
-        M3 = angle2matrix([-pitch, 0, 0])
+        # pitch=np.deg2rad(30)
+        M3 = angle2matrix([-pitch, 0, 0])#上下
         M_res = np.dot(M_res,M3) 
         landmark3d_align = np.dot(landmark3d_align, M3)
-    
+        
         r = Rotation.from_matrix(M_res)
-        euler = r.as_euler('xyz')
-        euler[0]=-euler[0]
-        euler[2]=-euler[2]
+        # euler = r.as_euler('xyz')
+        # euler[0]=-euler[0]
+        # euler[2]=euler[2]
         # l1 = np.dot(landmark3d_align, np.linalg.inv(M_res))    [pitch，-roll,-yaw,]
         rot_matrix = np.linalg.inv(M_res)
         r = Rotation.from_matrix(rot_matrix)
         rotvec = r.as_rotvec()
-        # euler = r.as_euler('xyz')
-        # euler1 = r.as_euler('zyx')#返回[z,y,x],第一个值为z
-        # rotvec[0]=-rotvec[0]
+        euler = r.as_euler('xyz')
+        euler[2]=-euler[2]
+        euler[1]=-euler[1]
+        
         rotvec[1]=-rotvec[1]
-        # euler[1]=-euler[1]
-        # euler1[1]=-euler1[1]
-        landmark3d_align = self.faces[index].landmark_3d_68[28]-landmark3d_align[28]+landmark3d_align
+
+        # drawLms(self.img,landmark3d_align[:,:2].astype('int'),color = [0,255,0])
         return rotvec, rot_matrix, euler, landmark3d_align[:,:2].astype('int')
     
     

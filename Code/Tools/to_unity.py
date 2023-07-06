@@ -29,7 +29,7 @@ def trans_hair(points,segments,num=100):
         "gender": "male",
         "hairType":"quads",#"quads"，"lines"
         "hairColor": [255,128,0,255],
-        "hairWidth":0.0005,
+        "hairWidth":0.0008,
     }
     js['vertices']=points.reshape((-1)).tolist()
     new_segments = np.array(list(range(0,len(points),num)))

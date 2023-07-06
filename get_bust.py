@@ -1,9 +1,9 @@
 import trimesh
-import pyrender
 import numpy as np
 import cv2
 from copy import deepcopy
 from skimage import transform
+import pyrender
 def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
     camera_pose_base = np.array([
     [1.0, 0.0, 0.0, 0],
@@ -21,7 +21,7 @@ def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
     scene.add(mesh)
 
     flags = pyrender.RenderFlags.RGBA | pyrender.RenderFlags.ALL_SOLID | pyrender.RenderFlags.SKIP_CULL_FACES
-    r = pyrender.OffscreenRenderer(viewport_width=1024, viewport_height=1024, point_size=1.0)
+    r = pyrender.OffscreenRenderer(viewport_width=640, viewport_height=640, point_size=1.0)
 
     light = pyrender.DirectionalLight(color=[1.0, 1.0, 1.0], intensity=intensity)
     light_pose = np.array([
@@ -40,18 +40,21 @@ def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
     scene.add(pc, pose=camera_pose)
     color, depth = r.render(scene, flags=flags)
     matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
+    print(matrix)
     img = cv2.cvtColor(color, cv2.COLOR_RGBA2BGR)
     r.delete()
     if preview_file != "":
         cv2.imwrite(preview_file, img)
     return img
-
-body = trimesh.load_mesh("/home/yxh/Documents/company/NeuralHDHair/female_halfbody_medium.obj")
-vertices_orig = deepcopy(body.vertices)
-angs = [[0,0],[15,0],[-15,0],[0,30],[0,15],[0,-15],[0,-30]]
-for k in range(0,7):
-    vertices = vertices_orig
-    vertices = vertices+np.array([0.00703544,-1.58652416,-0.01121912])
-    tform = transform.SimilarityTransform(rotation=[np.deg2rad(angs[k][0]),np.deg2rad(angs[k][1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
-    body.vertices = transform.matrix_transform(vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
-    render(body,bOrtho=True,preview_file=f"body_{k}.png")
+if __name__=="__main__":
+    body = trimesh.load_mesh("/home/yxh/Documents/company/NeuralHDHair/female_halfbody_medium.obj")
+    vertices_orig = deepcopy(body.vertices)
+    lms = vertices_orig[[2636,2523,6052,2498,2481,3676,3760,1864,3640,3630,3557,3560,3457,3579,3326,3288,3068,4747,4724,4720,35,1066,4439,4482,4497,4399,4394],:]
+    angs = [[0,0],[15,0],[-15,0],[0,30],[0,15],[0,-15],[0,-30]]
+    for k in range(3,7):
+        vertices = vertices_orig
+        vertices = vertices+np.array([0.00703544,-1.58652416,-0.01121912])
+        tform = transform.SimilarityTransform(rotation=[np.deg2rad(angs[k][0]),np.deg2rad(angs[k][1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
+        print(tform.params)
+        body.vertices = transform.matrix_transform(vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
+        render(body,bOrtho=True,preview_file=f"body_{k}.png")
