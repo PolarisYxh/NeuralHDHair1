@@ -169,7 +169,7 @@ class get_face_info:
                 frameForHair = cv2.copyMakeBorder(frameForHair, x, 640-frameForHair.shape[0]-x, y, 640-frameForHair.shape[1]-y, cv2.BORDER_CONSTANT)
                 face.landmark_2d_106 +=np.array([y,x])
                 face.landmark_3d_68 +=np.array([y,x,0])
-                drawLms(frameForHair, face.landmark_3d_68[:,:2])
+                # drawLms(frameForHair, face.landmark_3d_68[:,:2])
                 # drawLms(frameForHair,face.landmark_2d_106)
                 frames.append(frame)
                 framesForHair.append(frameForHair)

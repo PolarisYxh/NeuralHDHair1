@@ -549,7 +549,7 @@ def get_all_the_data(dirs,is_rot=False):
     #Delete data with number greater than 600
     for file in files:
         if is_rot==False:
-            if "_v" in file:
+            if "_v7" not in file or "_v8" not in file or "_v9" not in file:
                 continue
         data.append(os.path.join(dirs,file))
         # if int(file[2:])>600:

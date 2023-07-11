@@ -109,25 +109,25 @@ class filter_crop:
             self.body.vertices = np.dot(vertices,rot_matrix)+center
             m=[]
             bust = render(self.body,bOrtho=True,matrix=m,preview_file="")
-            cv2.imshow("1",bust)
-            cv2.waitKey()
+            # cv2.imshow("1",bust)
+            # cv2.waitKey()
             self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])
 
-            i1=cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/Bust/body_1.png")
-            i1=cv2.resize(i1,(640,640))
-            drawLms(framesForHair[0], self.mean_lms[:27,:2].astype('int'))
+            # i1=cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/Bust/body_1.png")
+            # i1=cv2.resize(i1,(640,640))
+            # drawLms(framesForHair[0], self.mean_lms[:27,:2].astype('int'))
             
             tp = 'affine'
             tform = trans.estimate_transform(tp, lms_3d[:27,:2], self.mean_lms[:27,:2])
             step = cv2.resize(step,(640,640))
-            cv2.imshow("1",step)
-            cv2.waitKey()
+            # cv2.imshow("1",step)
+            # cv2.waitKey()
             M = tform.params[0:2]
             step = cv2.warpAffine(step,
                                 M, (640, 640),
                                 borderValue=0.0)
-            cv2.imshow("1",step)
-            cv2.waitKey()
+            # cv2.imshow("1",step)
+            # cv2.waitKey()
             step = cv2.resize(step,(256,256))
             return step,bust
         _,lms_3d = self.insight_face_info.get_lms_3d(0)
@@ -194,7 +194,7 @@ if __name__=="__main__":
     for g in gender:
         test_dir1 = os.path.join(test_dir,g)
         file_names = os.listdir(test_dir1)
-        for name in file_names[6:]:
+        for name in file_names[:]:
             # name = "9.jpg"
             test_file = os.path.join(test_dir1,name)
             img = cv2.imread(test_file)
