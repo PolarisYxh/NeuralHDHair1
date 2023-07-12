@@ -4,6 +4,11 @@ import cv2
 from copy import deepcopy
 from skimage import transform
 import pyrender
+import json
+def readjson(file):
+    with open(file, 'r', encoding="utf-8") as load_f:
+        load_dict = json.load(load_f)
+    return load_dict  
 def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
     camera_pose_base = np.array([
     [1.0, 0.0, 0.0, 0],
@@ -36,11 +41,11 @@ def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
         pc = pyrender.OrthographicCamera(xymag, xymag, zfar=100)
     else:
         pc = pyrender.PerspectiveCamera(yfov=13.3493 * np.pi / 180, aspectRatio=15/13.3493, znear=0.01,zfar=20)
-    print(pc.get_projection_matrix())
+    # print(pc.get_projection_matrix())
     scene.add(pc, pose=camera_pose)
     color, depth = r.render(scene, flags=flags)
     matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
-    print(matrix)
+    # print(matrix)
     img = cv2.cvtColor(color, cv2.COLOR_RGBA2BGR)
     r.delete()
     if preview_file != "":
@@ -51,10 +56,13 @@ if __name__=="__main__":
     vertices_orig = deepcopy(body.vertices)
     lms = vertices_orig[[2636,2523,6052,2498,2481,3676,3760,1864,3640,3630,3557,3560,3457,3579,3326,3288,3068,4747,4724,4720,35,1066,4439,4482,4497,4399,4394],:]
     angs = [[0,0],[15,0],[-15,0],[0,30],[0,15],[0,-15],[0,-30]]
-    for k in range(3,7):
-        vertices = vertices_orig
-        vertices = vertices+np.array([0.00703544,-1.58652416,-0.01121912])
-        tform = transform.SimilarityTransform(rotation=[np.deg2rad(angs[k][0]),np.deg2rad(angs[k][1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
-        print(tform.params)
-        body.vertices = transform.matrix_transform(vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
-        render(body,bOrtho=True,preview_file=f"body_{k}.png")
+    angs_pair = readjson("angs_pair.json")
+    for file in angs_pair:
+        angs=angs_pair[file]
+        for k in range(7,10):
+            vertices = vertices_orig
+            vertices = vertices+np.array([0.00703544,-1.58652416,-0.01121912])
+            tform = transform.SimilarityTransform(rotation=[np.deg2rad(angs[k][0]),np.deg2rad(angs[k][1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
+            # print(tform.params)
+            body.vertices = transform.matrix_transform(vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
+            render(body,bOrtho=True,preview_file=f"/media/yxh/My Passport/ths/neuraldata1/{file[:-5]}_v{k}/body.png")

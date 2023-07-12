@@ -1476,7 +1476,7 @@ def get_Bust(dir,image,image_size,flip=False):
     else:
         Bust_path = os.path.join(Bust_path, 'body_0.png')
 
-
+    Bust_path = os.path.join(dir, 'body.png')
     # Bust_path = os.path.join(dir, 'color.png')
 
     # label = Image.open(label_path)
