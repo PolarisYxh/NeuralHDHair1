@@ -8,7 +8,7 @@
     "//use_gpu":true,
     "debug":false,
     "host": "0.0.0.0",
-    "port": 50083,
+    "port": 50084,
     "device":"cuda",
     "//":"device为cuda时，更改使用的gpu编号，device为cpu不影响",
     "gpus":"3",
