@@ -1511,7 +1511,7 @@ def get_Bust(dir,image,image_size,flip=False):
 
 
     return image[0]
-def get_Bust2(bust_img,image,image_size,trans=None):
+def get_Bust2(bust_img,image,image_size,trans=None,name=""):
     transform_list = []
     transform_list += [transforms.Resize((image_size, image_size))]
     transform_list += [transforms.ToTensor()]

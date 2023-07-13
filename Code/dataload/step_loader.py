@@ -139,29 +139,19 @@ class step_loader(base_loader):
             data = torch.cat([ padding_y,data], dim=2)[:, :, :-offset_y*mul]
         return data
 
-    def random_translation(self, image_size, gt, data_list):
-        offset_x = random.randint(1, 10) * 2
-        offset_y = random.randint(1, 10) * 2
-        rand_x = random.random()
-        rand_y = random.random()
+    def random(self, image_size, gt, data_list):
+        from torchvision import transforms
+        # 创建一个图像变换对象，包含随机旋转、缩放和平移
+        transform = transforms.Compose([
+            transforms.RandomAffine(degrees=(-180,180),translate=(0.0,0.6),scale=(1,2)),
+            transforms.ToTensor()  # 转换为张量
+        ])
 
-        for k,v in data_list.items():
-            C,H,W=v.shape[:]
-            mul=H//image_size
-            data_list[k]=self.translation(v,offset_x,offset_y,mul,[C,H,W],rand_x,rand_y)
+        # 加载图像
+        image = Image.open('path/to/image.jpg')
 
-        gt_depth, gt_x, gt_y, gt_channel = gt.shape[:]
-
-        padding_gt_x = torch.zeros(gt_depth, offset_x // 2, gt_y, gt_channel)
-        padding_gt_y = torch.zeros(gt_depth, gt_x, offset_y // 2, gt_channel)
-        if rand_x < 0.5:
-            gt = np.concatenate([gt, padding_gt_x], axis=1)[:, offset_x // 2:, :, :]
-        else:
-            gt = np.concatenate([padding_gt_x, gt], axis=1)[:, :-offset_x // 2, :, :]
-        if rand_y < 0.5:
-            gt = np.concatenate([gt, padding_gt_y], axis=2)[:, :, offset_y // 2:, :]
-        else:
-            gt = np.concatenate([padding_gt_y, gt], axis=2)[:, :, :-offset_y // 2, :]
+        # 应用图像变换
+        transformed_image = transform(image)
         return gt,data_list
 
 

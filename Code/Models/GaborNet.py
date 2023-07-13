@@ -129,48 +129,61 @@ class GaborConv2d(Module):
         """
         raise NotImplementedError
 
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-class up_conv(nn.Module):
-    def __init__(self,ch_in,ch_out):
-        super(up_conv,self).__init__()
-        self.up = nn.Sequential(
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(ch_in,ch_out,kernel_size=3,stride=1,padding=1,bias=True),
-		    nn.BatchNorm2d(ch_out),
-			nn.ReLU(inplace=True)
-        )
-
-    def forward(self,x):
-        x = self.up(x)
+class UNetDecoder(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(UNetDecoder, self).__init__()
+        
+        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.relu2 = nn.ReLU(inplace=True)
+    
+    def forward(self, x, skip_connection):
+        x = self.upconv(x)
+        x = torch.cat([x, skip_connection], dim=1)
+        x = self.conv1(x)
+        x = self.relu1(x)
+        x = self.conv2(x)
+        x = self.relu2(x)
         return x
 
 class GaborNN(nn.Module):
-    def __init__(self,in_cha):
+    def __init__(self,in_cha,out_cha):
         super(GaborNN, self).__init__()
-        self.g0 = GaborConv2d(in_channels=in_cha, out_channels=128, kernel_size=(11, 11))
+        self.g0 = GaborConv2d(in_channels=in_cha, out_channels=128, kernel_size=(11, 11),padding=5)
+        self.norm0 = nn.BatchNorm2d(128)
         self.Maxpool = nn.MaxPool2d(kernel_size=2,stride=2)
-        self.c1 = nn.Conv2d(128, 256, (3,3))
+        self.g1 = GaborConv2d(128, 256, (3,3),padding=1)
+        self.c1 = nn.Conv2d(128, 256, (3,3),padding=1)
+        self.norm1 = nn.BatchNorm2d(256)
         
-        self.conv_transpose = nn.ConvTranspose2d(256, 128, kernel_size=(11, 11))
+        self.center = nn.Conv2d(256, 512, kernel_size=3, padding=1)
+        self.relu = nn.ReLU(inplace=True)
         
-        self.Up4 = up_conv(ch_in=512,ch_out=256)
-        self.Up_conv4 = conv_block(ch_in=512, ch_out=256)
+        self.conv_transpose1 = UNetDecoder(512,256)
+        self.conv_transpose0 = UNetDecoder(256,128)
+        self.final_conv = nn.Conv2d(128, out_cha, kernel_size=1)
         
-        self.fc1 = nn.Linear(384*3*3, 64)
-        self.fc2 = nn.Linear(64, 2)
 
     def forward(self, x):
-        x = F.leaky_relu(nn.BatchNorm2d(self.g0(x)))
-        x = nn.MaxPool2d()(x)
-        x = F.leaky_relu(nn.BatchNorm2d(self.c1(x)))
-        x = nn.MaxPool2d()(x)
+        x0 = F.relu(self.norm0(self.g0(x)))
+        x1 = self.Maxpool(x0)
+        x1 = F.relu(self.norm1(self.c1(x1)))
+        x2 = self.Maxpool(x1)
+        center = self.center(x2)
+        center = self.relu(center)
         
+        dec1=self.conv_transpose1(center,x1)
+        dec0=self.conv_transpose0(dec1,x0)
         
-        x = x.view(-1, 384*3*3)
-        x = F.leaky_relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
+        output = self.final_conv(dec0)
+        return output
 
+if __name__=="__main__":
+    from torchsummary import summary
+    net = GaborNN(3,3)
+    summary(net, input_size=(3, 256, 256), device='cpu')
 # net = GaborNN().to(device)
 
 # class MFNBase(nn.Module):

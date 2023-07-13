@@ -88,20 +88,11 @@ class filter_crop:
             # framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
             imgB64 = cvmat2base64(framesForHair[0])
             step = self.hair_step.request_HairStep(image_name, 'img', imgB64)
-            # step = cv2.resize(step,(s[1],s[0]))
-            # x = (640-step.shape[0])//2 if 640-step.shape[0]>0 else 0
-            # y = (640-step.shape[1])//2 if 640-step.shape[1]>0 else 0
-            # step = cv2.copyMakeBorder(step, x, 640-step.shape[0]-x, y, 640-step.shape[1]-y, cv2.BORDER_CONSTANT)
-            
-            # self.mean_lms = apply_matrix(self.mean_lms[:27,:],rot_matrix)
 
             lms_3d = self.insight_face_info.faces[0].landmark_3d_68
             
             center=np.array(self.conf["center"])
             vertices = self.vertices_orig-center
-            # tform = trans.SimilarityTransform(rotation=[np.deg2rad(15),np.deg2rad(0),np.deg2rad(0)],dimensionality=3)#[0,-30,0] 向左旋转v6；[15,0,0] 向下旋转v1
-            # print(tform.params)
-            # self.mean_lms = trans.matrix_transform(self.mean_lms, tform.params)-np.array(center)
             euler[2]=0
             r = Rotation.from_euler('xyz',euler,False)
             rot_matrix = r.as_matrix()
@@ -112,10 +103,6 @@ class filter_crop:
             # cv2.imshow("1",bust)
             # cv2.waitKey()
             self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])
-
-            # i1=cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/Bust/body_1.png")
-            # i1=cv2.resize(i1,(640,640))
-            # drawLms(framesForHair[0], self.mean_lms[:27,:2].astype('int'))
             
             tp = 'affine'
             tform = trans.estimate_transform(tp, lms_3d[:27,:2], self.mean_lms[:27,:2])
@@ -131,6 +118,18 @@ class filter_crop:
             step = cv2.resize(step,(256,256))
             return step,bust
         _,lms_3d = self.insight_face_info.get_lms_3d(0)
+        center=np.array(self.conf["center"])
+        vertices = self.vertices_orig-center
+        euler[2]=0
+        r = Rotation.from_euler('xyz',euler,False)
+        rot_matrix = r.as_matrix()
+        self.revert_rot = np.linalg.inv(rot_matrix)
+        self.body.vertices = np.dot(vertices,rot_matrix)+center
+        m=[]
+        bust = render(self.body,bOrtho=True,matrix=m,preview_file="")
+        # cv2.imshow("1",bust)
+        # cv2.waitKey()
+        self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])
         tp = 'affine'
         tform = trans.estimate_transform(tp, lms_3d[:27,:2], self.mean_lms[:27,:2])
         # from util import trans_points2d
@@ -148,7 +147,7 @@ class filter_crop:
         # hair_point = [332,152]
         # lms_3d = [325,357]
         if self.use_gt:
-            gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
+            gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map1/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
             # TODO:两种方式得到的segment图不太一样，seg中的对散发也能分割。哪个比较好 后续进行实验
             gt_parsing=gt[:,:,2].copy()
             gt_parsing[gt_parsing!=255]=0
@@ -170,7 +169,7 @@ class filter_crop:
             gt_parsing = cv2.warpAffine(gt_parsing,
                                     M, (640, 640),
                                     borderValue=0.0)
-            return gt,gt_parsing
+            return gt,bust
         aligned = cv2.warpAffine(framesForHair[0],
                                 M, (640, 640),
                                 borderValue=0.0)

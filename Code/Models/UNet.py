@@ -97,3 +97,7 @@ class U_Net(BaseNetwork):
         d1 = self.Conv_1x1(d2)
 
         return d1
+if __name__=="__main__":
+    from torchsummary import summary
+    net = U_Net(3,3)
+    summary(net, input_size=(3, 256, 256), device='cpu')

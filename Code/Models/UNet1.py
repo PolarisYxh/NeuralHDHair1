@@ -65,15 +65,19 @@ class U_Net(BaseNetwork):
         enc1, skip1 = self.encoder1(x)
         enc2, skip2 = self.encoder2(enc1)
         enc3, skip3 = self.encoder3(enc2)
-        enc4, _ = self.encoder4(enc3)
+        enc4, skip4 = self.encoder4(enc3)
         
         center = self.center(enc4)
         center = self.relu(center)
         
-        dec4 = self.decoder4(center, skip3)
-        dec3 = self.decoder3(dec4, skip2)
-        dec2 = self.decoder2(dec3, skip1)
-        dec1 = self.decoder1(dec2, x)
+        dec4 = self.decoder4(center, skip4)
+        dec3 = self.decoder3(dec4, skip3)
+        dec2 = self.decoder2(dec3, skip2)
+        dec1 = self.decoder1(dec2, skip1)
         
         output = self.final_conv(dec1)
         return output
+if __name__=="__main__":
+    from torchsummary import summary
+    net = U_Net(3,3)
+    summary(net, input_size=(3, 256, 256), device='cpu')

@@ -64,8 +64,12 @@ class strand_inference:
         reset()
         # set_camera()
         ori2D,bust = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
+        # cv2.imshow("1",ori2D)
+        # cv2.waitKey()
         # ori2D = image
-        orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust)
+        orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=name)
+        if not isinstance(orientation,np.ndarray) and orientation==None:
+            return
         # draw_arrows_by_projection1(os.path.join("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/","DB1"),self.iter["GrowingNet"],draw_occ=True,hair_ori=orientation)
 
         points,segments = self.growing_solver.inference(orientation)
@@ -85,7 +89,7 @@ class strand_inference:
         # self.sample_num=2
         trans_hair(points,segments,self.sample_num)
         time.sleep(1)
-        save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
+        save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out1/"
         if use_gt:
             render(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
             time.sleep(1)
@@ -154,15 +158,15 @@ if __name__=="__main__":
     # trans_hair(roots,2)  
     gender = ['female','male']
     set_bgcolor()
-    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),use_step=True,Bidirectional_growth=True)
-    save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
+    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),use_step=False,Bidirectional_growth=True)
+    save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out1/"
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
-        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img"
+        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img1"
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[0:]):#:32
+        for name in tqdm(file_names[1245:]):#:32
             # name = "10_f.png"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
             cv2.imwrite(os.path.join(save_path, name),img)
-            hair_infe.inference(img,g,name,use_gt=False)
+            hair_infe.inference(img,g,name,use_gt=True)
