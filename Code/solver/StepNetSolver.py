@@ -44,7 +44,7 @@ class StepNetSolver(BaseSolver):
 
     def initialize_networks(self,opt):
         # self.net=HairSpatNet(opt,in_cha=opt.input_nc,min_cha=self.Spat_min_cha,max_cha=self.Spat_max_cha)
-        self.net=U_Net(img_ch=3,output_ch=3)
+        self.net=U_Net(in_channels=3,out_channels=3)
         # self.net=GaborNN(in_cha=3)
         self.net.print_network()
         if opt.continue_train or opt.isTrain is False:
