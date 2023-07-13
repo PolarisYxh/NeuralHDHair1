@@ -10,6 +10,7 @@ from torch.nn import Parameter
 from torch.nn.modules import Conv2d, Module
 import torch.nn as nn
 from torch.nn import functional as F
+from Models.BaseNetwork import BaseNetwork
 class GaborConv2d(Module):
     def __init__(
         self,
@@ -148,10 +149,10 @@ class UNetDecoder(nn.Module):
         x = self.relu2(x)
         return x
 
-class GaborNN(nn.Module):
-    def __init__(self,in_cha,out_cha):
+class GaborNN(BaseNetwork):
+    def __init__(self,in_channels,out_channels):
         super(GaborNN, self).__init__()
-        self.g0 = GaborConv2d(in_channels=in_cha, out_channels=128, kernel_size=(11, 11),padding=5)
+        self.g0 = GaborConv2d(in_channels=in_channels, out_channels=128, kernel_size=(11, 11),padding=5)
         self.norm0 = nn.BatchNorm2d(128)
         self.Maxpool = nn.MaxPool2d(kernel_size=2,stride=2)
         self.g1 = GaborConv2d(128, 256, (3,3),padding=1)
@@ -163,7 +164,7 @@ class GaborNN(nn.Module):
         
         self.conv_transpose1 = UNetDecoder(512,256)
         self.conv_transpose0 = UNetDecoder(256,128)
-        self.final_conv = nn.Conv2d(128, out_cha, kernel_size=1)
+        self.final_conv = nn.Conv2d(128, out_channels, kernel_size=1)
         
 
     def forward(self, x):

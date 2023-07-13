@@ -214,9 +214,7 @@ class HairSpatNetSolver(BaseSolver):
                 parse = image[:, :, 2]
                 image=image[:, :, [0, 1]]
                 image=1-image
-                label=np.linalg.norm(image,axis=2)
-                label[label >0]=1
-                image[np.where(label >0)]=[0,0]
+                image[np.where(parse<0.8)]=[0,0]
             image=torch.from_numpy(image)
             image=image.permute(2,0,1)
             Ori2D = image.clone()
@@ -224,7 +222,7 @@ class HairSpatNetSolver(BaseSolver):
             if isinstance(bust,np.ndarray):
                 image = get_Bust2(bust,image,self.opt.image_size,name=name)
                 if name!="":
-                    return None
+                    return
             else:
                 image = get_Bust1(self.opt.current_path,image,self.opt.image_size)
             image = torch.unsqueeze(image, 0)

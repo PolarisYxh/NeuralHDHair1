@@ -147,7 +147,7 @@ class filter_crop:
         # hair_point = [332,152]
         # lms_3d = [325,357]
         if self.use_gt:
-            gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map1/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
+            gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
             # TODO:两种方式得到的segment图不太一样，seg中的对散发也能分割。哪个比较好 后续进行实验
             gt_parsing=gt[:,:,2].copy()
             gt_parsing[gt_parsing!=255]=0

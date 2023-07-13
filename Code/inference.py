@@ -162,7 +162,7 @@ if __name__=="__main__":
     save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out1/"
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
-        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img1"
+        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img"
         file_names = os.listdir(test_dir)
         for name in tqdm(file_names[1245:]):#:32
             # name = "10_f.png"
