@@ -145,35 +145,35 @@ class get_face_info:
                 img = frame
             frames = []
             framesForHair = []
-            for face in self.faces:
-                bbox = face.bbox
-                w, h = (bbox[2] - bbox[0]), (bbox[3] - bbox[1])
-                center = (bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2
-                rotate = 0
-                _scale = 640  / (max(w, h)*3)
-                self.M,frame = transform(center, 640, _scale, 0, img)
-                face.landmark_2d_106_step = trans_points2d(face.landmark_2d_106, self.M).astype('int')
-                face.landmark_3d_68_step = trans_points3d(face.landmark_3d_68, self.M).astype('int')
-                # _scale = 640  / (max(w, h)*3)
-                # self.M,frameForHair = transform(center, 640, _scale, 0, img)
-                frameForHair = img[x:-x,y:-y,:]
-                scale = 640/max(frameForHair.shape[0],frameForHair.shape[1])
-                frameForHair = cv2.resize(frameForHair,(int(scale*frameForHair.shape[1]), int(scale*frameForHair.shape[0])))
-                face.landmark_2d_106 -=np.array([y,x])
-                face.landmark_3d_68 -=np.array([y,x,0])
-                self.M = trans.SimilarityTransform(scale=scale)
-                face.landmark_2d_106 = trans_points2d(face.landmark_2d_106, self.M.params).astype('int')
-                face.landmark_3d_68 = trans_points3d(face.landmark_3d_68, self.M.params).astype('int')
-                x = (640-frameForHair.shape[0])//2 if 640-frameForHair.shape[0]>0 else 0
-                y = (640-frameForHair.shape[1])//2 if 640-frameForHair.shape[1]>0 else 0
-                frameForHair = cv2.copyMakeBorder(frameForHair, x, 640-frameForHair.shape[0]-x, y, 640-frameForHair.shape[1]-y, cv2.BORDER_CONSTANT)
-                face.landmark_2d_106 +=np.array([y,x])
-                face.landmark_3d_68 +=np.array([y,x,0])
-                # drawLms(frameForHair, face.landmark_3d_68[:,:2])
-                # drawLms(frameForHair,face.landmark_2d_106)
-                frames.append(frame)
-                framesForHair.append(frameForHair)
-                self.img=frameForHair
+            face = self.faces[face_id]
+            bbox = face.bbox
+            w, h = (bbox[2] - bbox[0]), (bbox[3] - bbox[1])
+            center = (bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2
+            rotate = 0
+            _scale = 640  / (max(w, h)*3)
+            self.M,frame = transform(center, 640, _scale, 0, img)
+            face.landmark_2d_106_step = trans_points2d(face.landmark_2d_106, self.M).astype('int')
+            face.landmark_3d_68_step = trans_points3d(face.landmark_3d_68, self.M).astype('int')
+            # _scale = 640  / (max(w, h)*3)
+            # self.M,frameForHair = transform(center, 640, _scale, 0, img)
+            frameForHair = img[x:-x,y:-y,:]
+            scale = 640/max(frameForHair.shape[0],frameForHair.shape[1])
+            frameForHair = cv2.resize(frameForHair,(int(scale*frameForHair.shape[1]), int(scale*frameForHair.shape[0])))
+            face.landmark_2d_106 -=np.array([y,x])
+            face.landmark_3d_68 -=np.array([y,x,0])
+            self.M = trans.SimilarityTransform(scale=scale)
+            face.landmark_2d_106 = trans_points2d(face.landmark_2d_106, self.M.params).astype('int')
+            face.landmark_3d_68 = trans_points3d(face.landmark_3d_68, self.M.params).astype('int')
+            x = (640-frameForHair.shape[0])//2 if 640-frameForHair.shape[0]>0 else 0
+            y = (640-frameForHair.shape[1])//2 if 640-frameForHair.shape[1]>0 else 0
+            frameForHair = cv2.copyMakeBorder(frameForHair, x, 640-frameForHair.shape[0]-x, y, 640-frameForHair.shape[1]-y, cv2.BORDER_CONSTANT)
+            face.landmark_2d_106 +=np.array([y,x])
+            face.landmark_3d_68 +=np.array([y,x,0])
+            # drawLms(frameForHair, face.landmark_3d_68[:,:2])
+            # drawLms(frameForHair,face.landmark_2d_106)
+            frames.append(frame)
+            framesForHair.append(frameForHair)
+            self.img=frameForHair
                 # cv2.imshow("1",frame)
                 # cv2.waitKey()
             return self.faces,frames,framesForHair

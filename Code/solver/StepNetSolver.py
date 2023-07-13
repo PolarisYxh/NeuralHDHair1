@@ -1,6 +1,7 @@
 from solver.base_solver import BaseSolver
 from Models.HairSpatNet import HairSpatNet
-from Models.UNet import U_Net
+from Models.UNet1 import U_Net
+from Models.GaborNet import GaborNN
 from Loss.loss import lovasz_hinge,uniform_sample_loss,probability_sample_loss,binary_cross_entropy,compute_gradient_penalty
 from Loss.percepture_loss import VGGLoss
 import os
@@ -44,6 +45,7 @@ class StepNetSolver(BaseSolver):
     def initialize_networks(self,opt):
         # self.net=HairSpatNet(opt,in_cha=opt.input_nc,min_cha=self.Spat_min_cha,max_cha=self.Spat_max_cha)
         self.net=U_Net(img_ch=3,output_ch=3)
+        # self.net=GaborNN(in_cha=3)
         self.net.print_network()
         if opt.continue_train or opt.isTrain is False:
             path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
