@@ -96,7 +96,12 @@ def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_dept
     oriData=(oriData-0.5)*2
 
     if flip:
-        mask = cv2.imread(os.path.join(d, 'mask.png')) / 255
+        mask = cv2.cvtColor(oriImg,cv2.COLOR_BGR2GRAY)
+        mask1 = np.where(mask!=0)
+        mask = np.zeros_like(oriImg)
+        mask[mask1]=[255,255,255]
+        mask = mask/255
+        # mask = cv2.imread(os.path.join(d, 'mask.png')) / 255
         mask = cv2.resize(mask, (image_size, image_size))
         mask[mask > 0.0039] = 1
         mask[mask < 0.0039] = 0
@@ -548,10 +553,10 @@ def get_all_the_data(dirs,is_rot=False):
     #         data.append(os.path.join(dirs,file))
     #Delete data with number greater than 600
     for file in files:
-        if is_rot==False:
-            if "_v7" not in file or "_v8" not in file or "_v9" not in file:
-                continue
-        data.append(os.path.join(dirs,file))
+        # if is_rot==False:
+        if "_v7" in file or "_v8" in file or "_v9" in file:
+            # continue
+            data.append(os.path.join(dirs,file))
         # if int(file[2:])>600:
         #     continue
         # else:

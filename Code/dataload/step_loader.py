@@ -37,6 +37,7 @@ class step_loader(base_loader):
             target0=cv2.resize(target, (256, 256))# TODO: size大小到底是多少
             # target0=target
             parse = target0[:, :, 2]
+            M_sum = len(np.where(parse>200)[0])
             target0=255-target0
             target0[np.where(parse<200)]=[0,0,0]
             target0=cv2.cvtColor(target0,cv2.COLOR_RGB2BGR)
@@ -45,7 +46,7 @@ class step_loader(base_loader):
             # cv2.waitKey()
             target0=target0.transpose([2,0,1])
             target0=torch.from_numpy(target0)[None] / 255
-            M_sum = torch.sum(target0[:,2,:,:])
+            # M_sum = torch.sum(target0[:,2,:,:])
             target0 = target0.to(device)
             target_act = crit_vgg.get_features(target0)
             
