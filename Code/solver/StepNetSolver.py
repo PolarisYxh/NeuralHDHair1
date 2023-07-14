@@ -48,8 +48,16 @@ class StepNetSolver(BaseSolver):
         # self.net=U_Net(in_channels=3,out_channels=3)
         self.net_name="lraspp_mobilenet"
         self.net=torchvision.models.segmentation.lraspp_mobilenet_v3_large(num_classes=3)
+        if self.net_name =="lraspp_mobilenet":
+            if opt.continue_train or opt.isTrain is False:
+                path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
+                if os.path.exists(path):
+                    self.net = self.load_network(self.net, 'StepNet', opt.which_iter, opt)
+                else:
+                    print(path+" not exists!")
+                    exit()
         if self.net_name !="lraspp_mobilenet":
-            self.net=GaborNN(in_channels=3,out_channels=3)
+            # self.net=GaborNN(in_channels=3,out_channels=3)
             self.net.print_network()
             if opt.continue_train or opt.isTrain is False:
                 path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
