@@ -71,11 +71,11 @@ class step_loader(base_loader):
         target0=255-target0
         target0[np.where(parse<200)]=[0,0,0]
         # target0=cv2.cvtColor(target0,cv2.COLOR_RGB2BGR)
-        cv2.imshow("1",target0)
-        cv2.waitKey()
+        # cv2.imshow("1",target0)
+        # cv2.waitKey()
         target0=target0.transpose([2,0,1])
         target0=torch.from_numpy(target0) / 255
-        save_image(target0,"1.png")
+        # save_image(target0,"1.png")
         return {"input":input,"target":target0,"gt_feat":self.train_corpus[index]["gt_feat"],"gt_sum":self.train_corpus[index]["gt_sum"]}
 
     def generate_test_data(self):

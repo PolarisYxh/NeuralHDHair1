@@ -1,6 +1,6 @@
 from solver.base_solver import BaseSolver
 from Models.HairSpatNet import HairSpatNet
-from Models.UNet1 import U_Net
+from Models.UNet import U_Net
 from Models.GaborNet import GaborNN
 from Loss.loss import lovasz_hinge,uniform_sample_loss,probability_sample_loss,binary_cross_entropy,compute_gradient_penalty
 from Loss.percepture_loss import VGGLoss
@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from Tools.utils import *
 import torch.autograd
 from Tools.drawTools import draw_arrows_by_projection2
+import torchvision
 class StepNetSolver(BaseSolver):
 
     @staticmethod
@@ -44,22 +45,25 @@ class StepNetSolver(BaseSolver):
 
     def initialize_networks(self,opt):
         # self.net=HairSpatNet(opt,in_cha=opt.input_nc,min_cha=self.Spat_min_cha,max_cha=self.Spat_max_cha)
-        self.net=U_Net(in_channels=3,out_channels=3)
-        # self.net=GaborNN(in_channels=3,out_channels=3)
-        self.net.print_network()
-        if opt.continue_train or opt.isTrain is False:
-            path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
-            if os.path.exists(path):
-                self.net = self.load_network(self.net, 'StepNet', opt.which_iter, opt)
+        # self.net=U_Net(in_channels=3,out_channels=3)
+        self.net_name="lraspp_mobilenet"
+        self.net=torchvision.models.segmentation.lraspp_mobilenet_v3_large(num_classes=3)
+        if self.net_name !="lraspp_mobilenet":
+            self.net=GaborNN(in_channels=3,out_channels=3)
+            self.net.print_network()
+            if opt.continue_train or opt.isTrain is False:
+                path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
+                if os.path.exists(path):
+                    self.net = self.load_network(self.net, 'StepNet', opt.which_iter, opt)
+                else:
+                    print(path+" not exists!")
+                    exit()
             else:
-                print(path+" not exists!")
-                exit()
-        else:
-            print(" Training from Scratch! ")
-            self.net.init_weights(opt.init_type, opt.init_variance)
-            
-        from torchsummary import summary
-        summary(self.net, input_size=(3, 256, 256), device='cpu')
+                print(" Training from Scratch! ")
+                self.net.init_weights(opt.init_type, opt.init_variance)
+                
+            from torchsummary import summary
+            summary(self.net, input_size=(3, 256, 256), device='cpu')
         if len(opt.gpu_ids) > 0:
             assert (torch.cuda.is_available())
             self.model=self.net
@@ -117,7 +121,8 @@ class StepNetSolver(BaseSolver):
                 input,gt_feat,gt_sum,target = self.preprocess_input(datas)
                 
                 out_img = self.model(input)
-
+                if self.net_name=="lraspp_mobilenet":
+                    out_img=out_img['out']
                 self.G_loss["train_loss"] = 0.1*self.crit_vgg(out_img, gt_feat, target_is_features=True)
                 self.G_loss["train_loss"] += self.L1loss(out_img, target)/(3*gt_sum.squeeze().sum())
                 
@@ -148,7 +153,8 @@ class StepNetSolver(BaseSolver):
                     input,gt_feat,gt_sum,target = self.preprocess_input(datas)
                     input,gt_feat,gt_sum,target = input[None],gt_feat[None],gt_sum[None],target[None]
                     out_img = self.model(input)
-                    
+                    if self.net_name=="lraspp_mobilenet":
+                        out_img=out_img['out']
                     self.G_loss["test_loss"] = 0.1*self.crit_vgg(out_img, gt_feat, target_is_features=True)
                     self.G_loss["test_loss"] += self.L1loss(out_img, target)/(3*gt_sum.squeeze().sum())
                     visualizer.board_current_errors(self.G_loss)
