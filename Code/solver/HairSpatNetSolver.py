@@ -116,7 +116,7 @@ class HairSpatNetSolver(BaseSolver):
         return len(self.opt.gpu_ids) > 0
 
 
-    def train(self,iter_counter,dataloader,visualizer):
+    def train(self,iter_counter,dataloader,test_dataloader,visualizer):
         for epoch in iter_counter.training_epochs():
             if epoch>60:
                 self.opt.use_gt_Ori=False
@@ -183,9 +183,25 @@ class HairSpatNetSolver(BaseSolver):
                         self.save_network(self.Discriminator,'Discriminator','latest',self.opt)
 
                     iter_counter.record_current_iter()
-            visualizer.print_epoch_errors(epoch, iter_counter.epoch_iter)
+            # visualizer.print_epoch_errors(epoch, iter_counter.epoch_iter)
             self.update_learning_rate(epoch)
             iter_counter.record_epoch_end()
+            self.model.eval()
+            with torch.no_grad():
+                for i, datas in enumerate(test_dataloader):
+                    self.init_losses()
+                    image,gt_orientation,gt_occ,Ori2D,depth= self.preprocess_input(datas)
+                    image,gt_orientation,gt_occ,Ori2D,depth= image[None],gt_orientation[None],gt_occ[None],Ori2D[None],depth[None]
+                    if torch.sum(depth)==0:
+                        depth=None
+                    # depth=None
+                    out_ori, out_occ,self.G_loss['test_ori_loss'],self.G_loss['test_occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,no_use_depth=self.opt.no_use_depth)
+                    
+                    visualizer.board_current_errors(self.G_loss)
+                    # if i==0:
+                    #     save_image(out_img[0],"test_step_display1.png")
+                    
+            visualizer.print_epoch_errors(epoch, iter_counter.epoch_iter)
 
     def test(self,dataloader):
         with torch.no_grad():

@@ -45,9 +45,9 @@ class StepNetSolver(BaseSolver):
 
     def initialize_networks(self,opt):
         # self.net=HairSpatNet(opt,in_cha=opt.input_nc,min_cha=self.Spat_min_cha,max_cha=self.Spat_max_cha)
-        # self.net=U_Net(in_channels=3,out_channels=3)
-        self.net_name="lraspp_mobilenet"
-        self.net=torchvision.models.segmentation.lraspp_mobilenet_v3_large(num_classes=3)
+        self.net=U_Net(in_channels=3,out_channels=3)
+        self.net_name="unet"
+        # self.net=torchvision.models.segmentation.lraspp_mobilenet_v3_large(num_classes=3)
         if self.net_name =="lraspp_mobilenet":
             if opt.continue_train or opt.isTrain is False:
                 path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
@@ -167,7 +167,7 @@ class StepNetSolver(BaseSolver):
                     self.G_loss["test_loss"] += self.L1loss(out_img, target)/(3*gt_sum.squeeze().sum())
                     visualizer.board_current_errors(self.G_loss)
                     if i==0:
-                        save_image(out_img[0],"test_step_display.png")
+                        save_image(out_img[0],"test_step_display1.png")
                     
             visualizer.print_epoch_errors(epoch, iter_counter.epoch_iter)
             # test_loss /= len(test_dataloader.dataset)

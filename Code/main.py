@@ -18,6 +18,9 @@ if __name__ == '__main__':
     if opt.model_name == "GrowingNet":
         g_slover = GrowingNetSolver()
     elif opt.model_name == "HairSpatNet":
+        opt.isTrain=False
+        test_dataloader=data_loader(opt)
+        opt.isTrain=True
         g_slover = HairSpatNetSolver()
     elif opt.model_name=='HairModelingHD':
         g_slover=HairModelingHDSolver()
@@ -27,7 +30,7 @@ if __name__ == '__main__':
         g_slover=StepNetSolver()
         opt.isTrain=True
     g_slover.initialize(opt)
-    if opt.model_name=="StepNet":
+    if opt.model_name=="StepNet" or opt.model_name=="HairSpatNet":
         g_slover.train(iter_counter,dataloader,test_dataloader,visualizer)
     else:
         g_slover.train(iter_counter,dataloader,visualizer)

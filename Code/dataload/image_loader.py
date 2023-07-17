@@ -18,20 +18,34 @@ class image_loader(base_loader):
             self.train_nums = 0
             self.generate_corpus()
         else:
-            self.num_strands=self.opt.num_root
-
-    def generate_corpus(self):
+            self.train_corpus = []
+            self.train_nums = 0
+            self.generate_corpus(is_train=False)
+    def get_test_data(self,dirs,is_rot=False):
+        data=[]
+        files=os.listdir(dirs)
+        files=sorted(files)
+        #Delete data with number greater than 600
+        for file in files:
+            # if is_rot==False:
+            if "_v" not in file:
+                # continue
+                data.append(os.path.join(dirs,file))
+        return data
+    def generate_corpus(self,is_train=True):
         # exclude the tail, to do improve this
-        self.all_data = get_all_the_data(self.root,self.opt.is_rot)
-        self.train_corpus=self.all_data[:-self.num_of_val]
-
-        self.val_corpus = self.train_corpus[-self.num_of_val:]
+        if is_train:
+            self.all_data = get_all_the_data(self.root,self.opt.is_rot)
+            self.train_corpus=self.all_data
+        else:
+            self.train_corpus = self.get_test_data(self.root,self.opt.is_rot)
         random.shuffle(self.train_corpus)
 
         self.train_nums = len(self.train_corpus)
-        # print('val strand:',self.val_corpus)
-        # print('train strand:',self.train_corpus)
-        print(f"num of training data: {self.train_nums}")
+        if is_train:
+            print(f"num of training data: {self.train_nums}")
+        else:
+            print(f"num of test data: {self.train_nums}")
 
     def __getitem__(self, index):
         data_list={}
