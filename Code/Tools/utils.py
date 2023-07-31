@@ -76,7 +76,57 @@ def get_add_info(d,strand_size,info_mode,use_gt=False,suffix=''):
     # strand2D=cv2.imread(path)
     # strand2D=cv2.resize(strand2D,(strand_size,strand_size))
     return out
+def get_vox_total_pic(V, dd=1):
+    flag = False
+    maskA = None
+    Img = np.zeros(shape=[V.shape[1], V.shape[2], 3], dtype=np.float32)
 
+    for sliceID in range(V.shape[0] // dd):# 从前往后遍历96个体素
+        sliceImg = V[sliceID, :, :, :]
+        maskB = (sliceImg ** 2).sum(-1) > 1e-3  # H * W
+        # if np.max(maskB):
+        #     print(sliceID)
+        if (not flag):
+            flag = True
+            maskA = maskB.copy()
+            Img[maskB, :] = (sliceImg[maskB, :] + 1.0) * 0.5
+        else:
+            mask = np.logical_xor(np.logical_or(maskA, maskB), maskA)#类似累加，上一次已经设置了，这次就不设置了
+            Img[mask, :] = (sliceImg[mask, :] + 1.0) * 0.5
+            maskA = np.logical_or(maskA, maskB)
+
+    return Img * 255
+
+def show(ori,img):
+    img = cv2.resize(img,(1024,1024))
+    ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+    ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
+    ori = ori[:, :, ::-1, :]* np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
+    image = get_vox_total_pic(ori)
+    image = image/255
+    mask = (image**2).sum(-1) > 0
+    image = image * 2 - 1 #(-1,1)
+    img = cv2.flip(img,flipCode=1)
+    h = 128
+    w = 128
+    for hh in range(h):
+        for ww in range(w):
+            if mask[hh, ww]:
+
+                o = image[hh, ww][:2]
+                o /= np.sqrt(np.sum(o**2) + 1e-8)#归一化
+                o[1] *= 1
+
+                # radius = 8
+                o *= 4
+                center = np.array([ww * 8 + 4, hh * 8 + 4])
+                pt1 = (center - o).astype(np.int32)
+                pt2 = (center + o).astype(np.int32)
+
+                cv2.arrowedLine(img, (pt1[0], pt1[1]), (pt2[0], pt2[1]), (0, 0, 255), 1,tipLength = 0.5)
+    cv2.imwrite("1.png",img)
+    # cv2.imshow("2.png",image.astype('uint8'))
+    # cv2.waitKey()
 
 def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_depth=False,use_gt=False,use_conf=False):
 
@@ -273,7 +323,91 @@ def get_Strand2D(d,image_size=256,use_gt=False,strand_mode='strand'):
     conf = conf[:, :, [2, 1, 0]] / 255
     return conf
 
+def get_conditional_input_data1(ori, maskImg, flip=False, random_noise=False, image_size=256):
+    # ori = os.path.join(d, "disA.png").replace("\\", "/")
 
+    # depImg = cv2.imread(dep)
+    # oriImg = cv2.imread(ori)
+
+    # depImg = cv2.resize(depImg, (image_size, image_size), interpolation=cv2.INTER_NEAREST)
+    oriImg = cv2.resize(ori, (image_size, image_size), interpolation=cv2.INTER_NEAREST)
+
+    # depData = depImg[:, :, -1:].astype(np.float32) / 255.0  # only R
+    oriData = oriImg[:, :, [2, 1]].astype(np.float32) / 255.0  # R AND G
+
+    masData = None
+    # maskImg = cv2.imread(mask, cv2.IMREAD_GRAYSCALE)
+    maskImg = cv2.resize(maskImg, (image_size, image_size))
+    maskImg = np.expand_dims(maskImg, -1).astype(np.float32)
+
+    if flip:
+        maskImg = maskImg[:, ::-1, :]
+
+    masData = np.ascontiguousarray(maskImg) / 255.0
+    # masData = get_mask(d, False, image_size)
+    W = 100
+    oriData = oriData * 2. - 1.
+    if flip:
+        # masData = get_mask(d, False, image_size)
+        oriData = oriData * 2. - 1.
+
+    if flip:
+        masData = masData[:, ::-1, :]
+        depData = depData[:, ::-1, :]
+        oriData = oriData[:, ::-1, :] * np.array([-1., 1.])  # R should be flipped
+
+    if random_noise:
+        # print("random_noise")
+        num_noises = 5
+        max_window = 50
+        random_pos = np.random.randint(0, W - max_window, size=[num_noises, 2])
+
+        if random.random() > 0.5:
+            noise = np.zeros(shape=[W, W], dtype=np.float32)
+
+            for pos in random_pos:
+                random_window = np.random.randint(10, max_window)
+                random_window += 1 if random_window % 2 == 0 else 0
+                if masData[pos[0], pos[1], 0] > 0.5:
+                    wind = noise[pos[0]:pos[0] + random_window, pos[1]:pos[1] + random_window]
+                    h = wind.shape[0]
+                    w = wind.shape[1]
+                    gaussian_noise = np.random.normal(scale=1.0, size=(h, w))
+                    gaussian_light = cv2.getGaussianKernel(h, h // 4) * cv2.getGaussianKernel(w, w // 4).transpose()
+                    gaussian_light /= gaussian_light.max() + 1e-6
+                    gaussian_light = np.clip(gaussian_light, 0, 1.0)
+                    noise[pos[0]:pos[0] + random_window, pos[1]:pos[1] + random_window] = gaussian_noise * gaussian_light * 0.5
+                    num_noises -= 1
+
+            if num_noises < 5:
+                oriData += np.expand_dims(noise, -1)
+                oriData /= np.sqrt(np.sum(oriData ** 2, axis=-1, keepdims=True)) + 1e-6
+        else:
+            max_kernel_size = 20
+            min_kernel_size = 5
+            for pos in random_pos:
+                random_window = np.random.randint(20, max_window)
+                random_window += 1 if random_window % 2 == 0 else 0
+                if masData[pos[0], pos[1], 0] > 0.5:
+                    size = np.random.randint(min_kernel_size, max_kernel_size)
+                    wind = oriData[pos[0]:pos[0] + random_window, pos[1]:pos[1] + random_window, :]
+
+                    gaussian_light = cv2.getGaussianKernel(wind.shape[0], wind.shape[0] // 3) * cv2.getGaussianKernel(wind.shape[1], wind.shape[1] // 3).transpose()
+                    gaussian_light /= gaussian_light.max() + 1e-6
+                    gaussian_light = np.clip(gaussian_light, 0, 1.0)[:, :, np.newaxis]
+
+                    oriData[pos[0]:pos[0] + random_window, pos[1]:pos[1] + random_window, :] = \
+                        (cv2.blur(wind, (size, size)) * gaussian_light + wind * (1.0 - gaussian_light)) / (
+                                    np.sqrt(np.sum(wind ** 2, axis=-1, keepdims=True)) + 1e-6)
+
+    if flip or random_noise:
+        oriData = (oriData + 1.0) * 0.5 * masData
+        oriData = np.clip(oriData, 0., 1.)
+    oriData = np.append(oriData,np.zeros((oriData.shape[0],oriData.shape[1],1)),axis=2)[...,::-1]
+    # cv2.imshow("1",oriData)
+    # cv2.waitKey()
+    # input = np.concatenate([depData, oriData], axis=-1)
+    return oriData
 def get_conditional_input_data(d, flip=False, random_noise=False, image_size=256):
     dep = os.path.join(d, "Depth.png").replace("\\", "/")
     ori = os.path.join(d, "Ori.png").replace("\\", "/")
@@ -364,6 +498,66 @@ def get_ground_truth_3D_occ(d, flip=False):
     occ = np.ascontiguousarray(occ)
     return occ
 
+def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
+    file = os.path.join(d, "Ori3D.mat").replace("\\", "/")
+    transfer=False
+    if not os.path.exists(file):
+        if growInv:
+
+            file = os.path.join(d, "Ori_gt_Inv.mat").replace("\\", "/")
+        else:
+            file=os.path.join(d, "Ori_gt.mat").replace("\\", "/")
+        transfer=True
+    # print(file) ori: 128*128*288
+    ori = scipy.io.loadmat(file, verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
+    # show(ori,img)
+    # 旋转方向场
+    ori = np.transpose(ori, (1,0,2)) 
+    ori = ori.reshape((128, 128, 3, 96))   
+    ori = ori.transpose([0, 1, 3, 2])
+    ori = ori* np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
+    from skimage import transform as trans
+    tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(-ang[1]),np.deg2rad(0)],dimensionality=3)#[15,0,0]对应v1;[0,30,0]对应v6;
+    mask=np.linalg.norm(ori,axis=-1)
+    gt_occ=(mask>0).astype(np.float32)
+    mask1 = np.array(np.where(gt_occ>0))
+    gt_occ1=mask1.T-np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
+    new_gt_occ = trans.matrix_transform(gt_occ1, tform.params)+np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
+    new_gt_occ = new_gt_occ.T.astype('int')
+    index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= 95)
+    new_gt_occ = new_gt_occ[:,index]
+    mask1 = mask1[:,index]
+    index = (new_gt_occ[0] >= 0) & (new_gt_occ[0] <= 127)
+    new_gt_occ = new_gt_occ[:,index]
+    mask1 = mask1[:,index]
+    index = (new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)
+    new_gt_occ = new_gt_occ[:,(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)]
+    mask1 = mask1[:,index]
+    
+    ori1 = ori[tuple(mask1)]
+    new_ori1 = trans.matrix_transform(ori1.reshape((-1,3)),tform.params)
+    new_ori = np.zeros_like(ori)
+    new_ori[new_gt_occ[0],new_gt_occ[1],new_gt_occ[2]] = new_ori1
+    
+
+    new_ori = new_ori*np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
+    new_ori = new_ori.transpose([0, 1, 3, 2])
+    new_ori = new_ori.reshape((128, 128, -1))
+    new_ori = np.transpose(new_ori, (1,0,2))  
+    show(new_ori,img)
+    ori = new_ori
+    #原来的
+    ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+    ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
+
+    if flip:
+        ori = ori[:, :, ::-1, :] * np.array([-1.0, 1.0, 1.0])
+
+    ori = np.ascontiguousarray(ori)
+    if transfer:
+        return ori*np.array([1,-1,-1])  # scaled
+    else:
+        return ori
 
 def get_ground_truth_3D_ori(d, flip=False,growInv=False):
     file = os.path.join(d, "Ori3D.mat").replace("\\", "/")
@@ -534,29 +728,32 @@ def get_all_the_videos(dirs, interval=-1):
 
     return videos
 
+def get_all_the_data1(dirs,is_rot=False):
+    data=[]
+    files=os.listdir(dirs)
+    files=sorted(files)
+    #Delete data with number greater than 600
+    for file in files:
+        # if is_rot==False:
+        if "_v" in file:
+            continue
+        data.append(os.path.join(dirs,file))
+        # if int(file[2:])>600:
+        #     continue
+        # else:
+        #     data.append(os.path.join(dirs,file))
+    print("num of the strand model:{}".format(len(data)))
+    return data
 def get_all_the_data(dirs,is_rot=False):
     data=[]
     files=os.listdir(dirs)
     files=sorted(files)
-    # files=['DB100_0']*80
-    # for file in files:
-    #
-    #     # ID = file.split('_')[0][2:]
-    #     # if int(ID)>=300 and int(ID)<=600:
-    #     #     continue
-    #
-    #     if file[-1]=='0':
-    #         for i in range(5):
-    #             data.append(os.path.join(dirs,file))
-    #     else:
-    #         # continue
-    #         data.append(os.path.join(dirs,file))
     #Delete data with number greater than 600
     for file in files:
         # if is_rot==False:
-        if "_v7" in file or "_v8" in file or "_v9" in file:
-            # continue
-            data.append(os.path.join(dirs,file))
+        if "_v14" in file or "_v13" in file:
+            continue
+        data.append(os.path.join(dirs,file))
         # if int(file[2:])>600:
         #     continue
         # else:

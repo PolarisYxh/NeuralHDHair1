@@ -2,6 +2,10 @@ from dataload.base_loader import base_loader
 from Tools.utils import *
 import torch
 import shutil
+from dataload.render_strand import render_strand
+import trimesh
+from skimage import transform as trans
+import cv2
 class image_loader(base_loader):
 
     def initialize(self,opt):
@@ -12,6 +16,7 @@ class image_loader(base_loader):
         self.isTrain = opt.isTrain
         self.parent_dir = opt.current_path
         self.root = os.path.join(self.parent_dir,opt.strand_dir)
+        self.mesh = trimesh.load(os.path.join(os.path.dirname(__file__),"../../",'female_halfbody_medium.obj'))
         if self.isTrain:
             self.num_of_val = opt.num_of_val
             self.train_corpus = []
@@ -26,39 +31,100 @@ class image_loader(base_loader):
         files=os.listdir(dirs)
         files=sorted(files)
         #Delete data with number greater than 600
-        for file in files:
-            # if is_rot==False:
-            if "_v" not in file:
-                # continue
-                data.append(os.path.join(dirs,file))
+        # for file in files[:50]:
+        #     # if is_rot==False:
+        #     if "DB1" in file:
+        #         # continue
+        data.append(os.path.join(dirs,"DB1"))
         return data
     def generate_corpus(self,is_train=True):
         # exclude the tail, to do improve this
         if is_train:
-            self.all_data = get_all_the_data(self.root,self.opt.is_rot)
-            self.train_corpus=self.all_data
+            self.all_data = get_all_the_data1(self.root,self.opt.is_rot)
+            self.train_corpus=self.all_data[1:2]
         else:
             self.train_corpus = self.get_test_data(self.root,self.opt.is_rot)
-        random.shuffle(self.train_corpus)
 
         self.train_nums = len(self.train_corpus)
         if is_train:
             print(f"num of training data: {self.train_nums}")
         else:
             print(f"num of test data: {self.train_nums}")
-
+    def __len__(self):
+        # if self.isTrain:
+        #     numbers = list(range(0, 13))
+        #     # 随机选择三个不重复的数字
+        #     random_numbers = list(random.sample(numbers, 3))
+        #     self.train_corpus=np.array(self.all_data).reshape((-1,13))
+        #     self.train_corpus=self.train_corpus[:,random_numbers].reshape((-1))
+        #     print("train_data random:"+str(len(self.train_corpus)))
+        random.shuffle(self.train_corpus)
+        return len(self.train_corpus)
     def __getitem__(self, index):
         data_list={}
         file_name=self.train_corpus[index]
         x=[False,True]
         flip=x[random.randint(0, 1)]
-        image=get_image(file_name,flip,self.opt.image_size,self.opt.Ori_mode,self.opt.blur_ori,no_use_depth=True,use_gt=True,use_conf=self.opt.use_conf)
+        strand1 = np.load(os.path.join(file_name,os.path.basename(file_name)+".npy"))
+        strand1  = strand1.reshape((-1,3))
+        orig_vertices = self.mesh.vertices.copy()
+        strand = strand1.copy()
+        strand = strand+np.array([0.00703544,-1.58652416,-0.01121912])
+        orig_vertices1 = orig_vertices+np.array([0.00703544,-1.58652416,-0.01121912])
+        x=random.randint(-25,-5)
+        x=-x if random.randint(0,1)==1 else x
+        y=random.randint(-20,-5)
+        y=-y if random.randint(0,1)==1 else y
+        ang = [y,x]
+        tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
+        strand = trans.matrix_transform(strand, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
+        self.mesh.vertices = trans.matrix_transform(orig_vertices1, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
+        
+        strand1 = strand.reshape((-1,100,3))
+        strand_before = strand1[:,:-1,:]
+        strand_aft = strand1[:,1:,:]
+        ori1 = strand_aft-strand_before
+        ori2 = strand1[:,99,:]-strand1[:,98,:]
+        ori_list = np.append(ori1,ori2[:,None],axis=1)
+        ori_list[:,:,2]= 0
+        norms = np.linalg.norm(ori_list, axis=2, keepdims=True)
+        # Handle elements with norm of zero separately
+        zero_norm_indices = np.isclose(norms, 0.0)
+        norms[zero_norm_indices] = 1.0
+        ori_list = ori_list/norms
+        ori_list = ori_list.reshape((-1,3))
+        ori_list[:,0]= ori_list[:,0]/ 2.0 + 0.5
+        ori_list[:,1]= ori_list[:,1]/ 2.0 + 0.5
+        ori_list = ori_list[:,[2,1,0]]
+        segments = (np.ones(int(len(strand)/100))*100).astype("int")
+        ori_list = ori_list.reshape((-1,100,3))
+        _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=False)
+        oriImg1 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+        mask_area = np.where(oriImg1!=0)
+        mask = np.zeros_like(oriImg1)
+        mask[mask_area]=255
+        image = np.copy(img2)
+        image = get_conditional_input_data1(image, mask, False, True)
+        # flip=True
+        if flip:
+            image=(image-0.5)*2
+            image = image[:, ::-1, :] * np.array([1.,1.,-1])
+            image=(image+1)/2
+            mask = mask[:, ::-1]
+            image[mask!=255]=[0,0,0]
+            depth = depth[:,::-1]
+        # cv2.imwrite("1-2.png",(255*image).astype('uint8'))
+        if not self.opt.no_use_bust: 
+            oriImg1=np.zeros_like(mask)
+            oriImg1[mask!=255]=1
+            image[:,:,2]=image[:,:,2]+oriImg1*depth
+            image[:,:,1]=image[:,:,1]+oriImg1*depth
+
+        image = image[:, :, [2, 1]].astype(np.float32)
         image=torch.from_numpy(image)
         image=image.permute(2,0,1)
         Ori2D = image.clone()
-
-        if not self.opt.no_use_bust:
-            image = get_Bust(file_name, image, self.opt.image_size,flip)
+        save_image(torch.cat([Ori2D.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], 'test.png')
 
         data_list['image']=image
         if self.opt.use_HD:
@@ -69,17 +135,16 @@ class image_loader(base_loader):
                 add_info=add_info.permute(2,0,1)
             data_list['add_info']=add_info
 
-
-        depth=get_depth(file_name,self.opt.image_size)
-
+        depth=cv2.resize(depth,(self.opt.image_size,self.opt.image_size))
+        depth=depth[:,:,None]*95.0
+        # depth=get_depth(file_name,self.opt.image_size)
+        cv2.imwrite("depth.png",depth)
         depth=torch.from_numpy(depth)
         depth=depth.permute(2,0,1)
         data_list['depth']=depth
 
 
-        gt_orientation = get_ground_truth_3D_ori(file_name, flip, growInv=self.opt.growInv)
-
-
+        gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy(img2), flip, growInv=self.opt.growInv)
         # image,gt_orientation,strand2D=self.random_translation(image,gt_orientation,strand2D)
         # gt_orientation 96,128,128,3
         gt_orientation,data_list=self.random_translation(self.opt.image_size,gt_orientation,data_list)
@@ -211,10 +276,3 @@ class image_loader(base_loader):
         else:
             gt = np.concatenate([padding_gt_y, gt], axis=2)[:, :, :-offset_y // 2, :]
         return gt,data_list
-
-
-
-
-
-
-

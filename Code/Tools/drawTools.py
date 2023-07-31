@@ -162,7 +162,7 @@ def draw_gt_arrows_by_projection(fileDir, test=False):
     d = 96
     flip = True
     noise = True
-    ori = os.path.join(fileDir, "Ori2.png").replace("\\", "/")
+    ori = os.path.join(fileDir, "test5.png").replace("\\", "/")
     target = cv2.imread(ori)
     target = cv2.resize(target, (1024, 1024), interpolation=cv2.INTER_NEAREST)
     target = cv2.flip(target,flipCode=1)
@@ -277,4 +277,4 @@ def draw_arrows_by_projection2(target_img, hair_ori, fileDir, iter,draw_occ=True
         cv2.imwrite(os.path.join(fileDir,f"pred_ori_{iter}.jpg"), target)
 if __name__=="__main__":
     # draw_arrows_by_projection1("/home/yangxinhang/NeuralHDHair/data/Train_input/strands00001",iter='150000',draw_occ=True)
-    draw_gt_arrows_by_projection("/home/yangxinhang/NeuralHDHair/data/Train_input/DB1")
+    draw_gt_arrows_by_projection("/home/yangxinhang/NeuralHDHair")
