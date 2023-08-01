@@ -17,6 +17,8 @@ class image_loader(base_loader):
         self.parent_dir = opt.current_path
         self.root = os.path.join(self.parent_dir,opt.strand_dir)
         self.mesh = trimesh.load(os.path.join(os.path.dirname(__file__),"../../",'female_halfbody_medium.obj'))
+        self.orig_vertices = self.mesh.vertices.copy()
+        self.orig_vertices = self.orig_vertices+np.array([0.00703544,-1.58652416,-0.01121912])
         if self.isTrain:
             self.num_of_val = opt.num_of_val
             self.train_corpus = []
@@ -41,7 +43,7 @@ class image_loader(base_loader):
         # exclude the tail, to do improve this
         if is_train:
             self.all_data = get_all_the_data1(self.root,self.opt.is_rot)
-            self.train_corpus=self.all_data[1:2]
+            self.train_corpus=self.all_data
         else:
             self.train_corpus = self.get_test_data(self.root,self.opt.is_rot)
 
@@ -67,18 +69,18 @@ class image_loader(base_loader):
         flip=x[random.randint(0, 1)]
         strand1 = np.load(os.path.join(file_name,os.path.basename(file_name)+".npy"))
         strand1  = strand1.reshape((-1,3))
-        orig_vertices = self.mesh.vertices.copy()
+        
         strand = strand1.copy()
         strand = strand+np.array([0.00703544,-1.58652416,-0.01121912])
-        orig_vertices1 = orig_vertices+np.array([0.00703544,-1.58652416,-0.01121912])
-        x=random.randint(-25,-5)
-        x=-x if random.randint(0,1)==1 else x
-        y=random.randint(-20,-5)
-        y=-y if random.randint(0,1)==1 else y
+        
+        x=random.randint(-25,25)
+        # x=-x if random.randint(0,1)==1 else x
+        y=random.randint(-20,20)
+        # y=-y if random.randint(0,1)==1 else y
         ang = [y,x]
         tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
         strand = trans.matrix_transform(strand, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
-        self.mesh.vertices = trans.matrix_transform(orig_vertices1, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
+        self.mesh.vertices = trans.matrix_transform(self.orig_vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
         
         strand1 = strand.reshape((-1,100,3))
         strand_before = strand1[:,:-1,:]
