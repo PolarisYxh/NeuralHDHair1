@@ -48,7 +48,7 @@ class HairSpatNet(BaseNetwork):
         assert voxel_size[0]%(self.image_size//self.latent_size)==0, "latent_size should be reset"
         self.encoder=UnetEncoder(n_layers,self.in_cha,min_cha,max_cha,activation='lrelu')
         from torchsummary import summary
-        summary(self.encoder, input_size=(2, 256, 256), device='cpu')
+        summary(self.encoder, input_size=(self.in_cha, 256, 256), device='cpu')
         print("Encoder: image size from {} to {}, out_channel from {} to {}".format(self.image_size, self.latent_size,min_cha, max_cha))
         self.decoder_ori=HairSpatDecoder(min_cha,max_cha,3,n_layers-layers_d,latent_d,opt.no_use_depth)
         self.decoder_occ=HairSpatDecoder(min_cha,max_cha,1,n_layers-layers_d,latent_d,opt.no_use_depth)
@@ -169,7 +169,11 @@ class HairSpatNet(BaseNetwork):
 
 
         self.depth_feat=depth/95.
-
+    def get_depth_feat1(self,depth_map,points):
+        xy = points[:, :, [1, 0]]
+        xy = (xy - 0.5) * 2
+        depth = self.index(depth_map, xy)
+        self.depth_feat=depth
 
     def compute_weight(self,depth_map,points):
         xy = points[:, :, [1, 0]]
@@ -181,7 +185,7 @@ class HairSpatNet(BaseNetwork):
         self.loss_weight=self.loss_weight.clamp(0.2,1.)
         self.loss_weight=torch.where(depth==0,torch.ones_like(self.loss_weight),self.loss_weight)
 
-    def forward(self,x,gt_occ,gt_ori,mode='generator',depth_map=None,no_use_depth=True):
+    def forward(self,x,gt_occ,gt_ori,mode='generator',depth_map=None,norm_depth=None,no_use_depth=True):
         if mode=='generator':
             B=x.size(0)
             # D,H,W=96*2,128*2,128*2
@@ -196,7 +200,7 @@ class HairSpatNet(BaseNetwork):
 
                 self.compute_weight(depth_map,self.points)
             if not no_use_depth:
-                self.get_depth_feat(depth_map,self.points)
+                self.get_depth_feat1(norm_depth,self.points)
                 depth=self.depth_feat
             else:
                 depth=None

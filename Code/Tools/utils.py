@@ -12,6 +12,7 @@ from Models.normalization import instance_norm_video
 import math
 from torchvision.utils import save_image
 import json
+import matplotlib.pyplot as plt
 stepInv = 1. / 0.01015625
 gridOrg = np.array([-0.65, -0.65, -0.4875], dtype=np.float32)
 
@@ -124,7 +125,7 @@ def show(ori,img):
                 pt2 = (center + o).astype(np.int32)
 
                 cv2.arrowedLine(img, (pt1[0], pt1[1]), (pt2[0], pt2[1]), (0, 0, 255), 1,tipLength = 0.5)
-    cv2.imwrite("1.png",img)
+    cv2.imwrite("ori2_3d.png",img)
     # cv2.imshow("2.png",image.astype('uint8'))
     # cv2.waitKey()
 
@@ -208,7 +209,12 @@ def trans_image(oriImg,image_size):
 #     img=Image.open(img_path).convert('RGB')
 #
 #     return transform_image(img)
-
+def depth2vis(norm_masked_depth):
+    # masked_img = depth * mask + (1 - mask) * ((depth * mask - (1 - mask) * 100000).max())  # set the value of un-mask to the min-val in mask
+    # norm_masked_depth = masked_img / (np.nanmax(masked_img) - np.nanmin(masked_img))  # norm
+    plt.imsave('inter_saved_img.png', norm_masked_depth, cmap='jet')
+    # depth_map_vis = imageio.imread('inter_saved_img.png')[..., 0:3] * np.repeat(mask[:,:,None], 3, axis=2)
+    # plt.imsave(path_output, depth_map_vis)
 
 
 def get_mask(d, flip=False, image_size=256):
@@ -544,7 +550,7 @@ def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
     new_ori = new_ori.transpose([0, 1, 3, 2])
     new_ori = new_ori.reshape((128, 128, -1))
     new_ori = np.transpose(new_ori, (1,0,2))  
-    show(new_ori,img)
+    # show(new_ori,img)
     ori = new_ori
     #原来的
     ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
@@ -552,7 +558,7 @@ def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
 
     if flip:
         ori = ori[:, :, ::-1, :] * np.array([-1.0, 1.0, 1.0])
-
+    # show(ori.transpose(1, 2, 3, 0),img)
     ori = np.ascontiguousarray(ori)
     if transfer:
         return ori*np.array([1,-1,-1])  # scaled

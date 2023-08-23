@@ -73,7 +73,7 @@ class image_loader(base_loader):
         strand = strand1.copy()
         strand = strand+np.array([0.00703544,-1.58652416,-0.01121912])
         
-        x=random.randint(-25,25)
+        x=random.randint(-30,30)
         # x=-x if random.randint(0,1)==1 else x
         y=random.randint(-20,20)
         # y=-y if random.randint(0,1)==1 else y
@@ -100,7 +100,7 @@ class image_loader(base_loader):
         ori_list = ori_list[:,[2,1,0]]
         segments = (np.ones(int(len(strand)/100))*100).astype("int")
         ori_list = ori_list.reshape((-1,100,3))
-        _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=False)
+        _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=True)
         oriImg1 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
         mask_area = np.where(oriImg1!=0)
         mask = np.zeros_like(oriImg1)
@@ -126,7 +126,7 @@ class image_loader(base_loader):
         image=torch.from_numpy(image)
         image=image.permute(2,0,1)
         Ori2D = image.clone()
-        save_image(torch.cat([Ori2D.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], 'test.png')
+        # save_image(torch.cat([Ori2D.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], 'test.png')
 
         data_list['image']=image
         if self.opt.use_HD:
@@ -139,14 +139,26 @@ class image_loader(base_loader):
 
         depth=cv2.resize(depth,(self.opt.image_size,self.opt.image_size))
         depth=depth[:,:,None]*95.0
-        # depth=get_depth(file_name,self.opt.image_size)
-        cv2.imwrite("depth.png",depth)
+        if self.opt.input_nc==3:
+            mask1=np.zeros_like(mask)
+            area=np.where((mask>0) & (depth[:, :, 0]>0))
+            mask1[area]=1
+            depth_masked=depth[:, :, 0] * mask1 - (1 - mask1) * (np.abs(np.nanmax(depth)) + np.abs(np.nanmin(depth)))
+            max_val = np.nanmax(depth_masked)
+            min_val = np.nanmin(depth_masked + 2 * (1 - mask1) * (np.abs(np.nanmax(depth)) + np.abs(np.nanmin(depth))))
+            depth_norm = (max_val-depth_masked) / (max_val - min_val)*mask1
+            depth_norm = np.clip(depth_norm, 0., 1.)
+            # cv2.imwrite("depth_norm.png",(depth_norm*255).astype('uint8'))
+            depth_norm=torch.from_numpy(depth_norm[:,:,None])
+            depth_norm=depth_norm.permute(2,0,1)
+            image=torch.cat([image,depth_norm], dim=0)
+            data_list['image']=image
+            # save_image(image, 'depth.png')
         depth=torch.from_numpy(depth)
         depth=depth.permute(2,0,1)
         data_list['depth']=depth
 
-
-        gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy(img2), flip, growInv=self.opt.growInv)
+        gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy((image.numpy().transpose(1,2,0)*255).astype('uint8')), flip, growInv=self.opt.growInv)
         # image,gt_orientation,strand2D=self.random_translation(image,gt_orientation,strand2D)
         # gt_orientation 96,128,128,3
         gt_orientation,data_list=self.random_translation(self.opt.image_size,gt_orientation,data_list)
@@ -170,8 +182,9 @@ class image_loader(base_loader):
             'Ori2D':Ori2D,
             'add_info':add_info,
             'depth':data_list['depth']
-
         }
+        if self.opt.no_use_depth==False:
+            return_list['norm_depth']=data_list['norm_depth']
         return return_list
 
     def generate_test_data(self):

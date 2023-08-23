@@ -2,11 +2,7 @@ import numpy as np
 import dataload.pyrender as pyrender
 from skimage import transform
 import cv2
-import platform
 import os
-plat = platform.system().lower()
-if plat != 'windows':
-    os.environ['PYOPENGL_PLATFORM'] = 'egl'
 import sys
 import random
 sys.path.append(os.path.dirname(__file__))
@@ -49,7 +45,7 @@ def render_strand(strands,segments,mesh=None,orientation=None,mask=False,intensi
     bOrtho = True
     if bOrtho:
         xymag = 0.36300416
-        cam = 0.28347224
+        cam = 0.28347224#96*0.00567194(voxel_size)-0.261034
         far = 0.261034
         pc = pyrender.OrthographicCamera(xymag,xymag,znear=0.0001,zfar=cam+far)
         # pc = pyrender.OrthographicCamera(xymag, xymag, zfar=200)
@@ -74,7 +70,8 @@ def render_strand(strands,segments,mesh=None,orientation=None,mask=False,intensi
         [0.0, 0.0, 1.0, 5.00],
         [0.0, 0.0, 0.0, 1.0],
     ])
-    camera_pose = transform.SimilarityTransform(translation=(0, 1.58652416, cam), rotation=(np.deg2rad(0),0,0), dimensionality=3)
+    # 1.58652416=64*0.00567194(voxel_size)+1.22352,-0.00703244=64*0.00567194(voxel_size)-0.3700396
+    camera_pose = transform.SimilarityTransform(translation=(-0.00703244, 1.58652416, cam), rotation=(np.deg2rad(0),0,0), dimensionality=3)
     scene.add(pc, name="main_cam", pose=camera_pose.params)
     if not offscreen:
         # scene.main_camera_node.matrix = np.dot(move, camera_pose)

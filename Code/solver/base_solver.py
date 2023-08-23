@@ -77,6 +77,7 @@ class BaseSolver(nn.Module):
             torch.save(net.cpu().state_dict(), save_path+'/'+save_filename)
         if len(opt.gpu_ids) and torch.cuda.is_available():
             net.cuda()
+        print("save to "+save_path + '/' + save_filename)
 
     def load_weights(self,cnn_model, weights):
         """

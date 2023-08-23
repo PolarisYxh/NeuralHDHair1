@@ -7,11 +7,16 @@ from solver.HairModelingHDSolver import HairModelingHDSolver
 from solver.StepNetSolver import StepNetSolver
 from dataload import data_loader
 import os
+import platform
 if __name__ == '__main__':
     opt=TrainOptions().parse()
     gpu_str=[str(i) for i in opt.gpu_ids]
     gpu_str=','.join(gpu_str)
     os.environ['CUDA_VISIBLE_DEVICES'] =gpu_str
+    plat = platform.system().lower()
+    if plat != 'windows':
+        os.environ['PYOPENGL_PLATFORM'] = 'egl'
+        os.environ['EGL_DEVICE_ID']=str(opt.gpu_ids[0])
     iter_counter = IterationCounter(opt, 0)
     visualizer=Visualizer(opt)
     dataloader=data_loader(opt)

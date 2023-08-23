@@ -124,6 +124,10 @@ class HairSpatNetSolver(BaseSolver):
             for i, datas in enumerate(dataloader):
                 self.init_losses()
                 iter_counter.record_one_iteration()
+                if self.opt.no_use_depth==False and 'norm_depth' in datas:
+                    norm_depth=datas['norm_depth'].type(torch.float)
+                    if self.use_gpu():
+                        norm_depth=norm_depth.cuda()
                 image,gt_orientation,gt_occ,Ori2D,depth= self.preprocess_input(datas)
                 if self.opt.close_gt:
                     close_gt=close_voxel(gt_occ,5)
@@ -133,7 +137,10 @@ class HairSpatNetSolver(BaseSolver):
                 if torch.sum(depth)==0:
                     depth=None
                 # depth=None
-                out_ori, out_occ,self.G_loss['ori_loss'],self.G_loss['occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,no_use_depth=self.opt.no_use_depth)
+                if self.opt.no_use_depth==False:
+                    out_ori, out_occ,self.G_loss['ori_loss'],self.G_loss['occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,norm_depth=norm_depth,no_use_depth=self.opt.no_use_depth)
+                else:
+                    out_ori, out_occ,self.G_loss['ori_loss'],self.G_loss['occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,no_use_depth=self.opt.no_use_depth)
                 # out_ori, _,self.G_loss['ori_loss'],_ = self.model(image,gt_occ,gt_orientation,depth_map=depth,no_use_depth=self.opt.no_use_depth)
 
                 if self.opt.use_gan:
@@ -186,18 +193,18 @@ class HairSpatNetSolver(BaseSolver):
             # visualizer.print_epoch_errors(epoch, iter_counter.epoch_iter)
             self.update_learning_rate(epoch)
             iter_counter.record_epoch_end()
-            self.model.eval()
-            with torch.no_grad():
-                for i, datas in enumerate(test_dataloader):
-                    self.init_losses()
-                    image,gt_orientation,gt_occ,Ori2D,depth= self.preprocess_input(datas)
-                    image,gt_orientation,gt_occ,Ori2D,depth= image[None],gt_orientation[None],gt_occ[None],Ori2D[None],depth[None]
-                    if torch.sum(depth)==0:
-                        depth=None
-                    # depth=None
-                    out_ori, out_occ,self.G_loss['test_ori_loss'],self.G_loss['test_occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,no_use_depth=self.opt.no_use_depth)
+            # self.model.eval()
+            # with torch.no_grad():
+            #     for i, datas in enumerate(test_dataloader):
+            #         self.init_losses()
+            #         image,gt_orientation,gt_occ,Ori2D,depth= self.preprocess_input(datas)
+            #         image,gt_orientation,gt_occ,Ori2D,depth= image[None],gt_orientation[None],gt_occ[None],Ori2D[None],depth[None]
+            #         if torch.sum(depth)==0:
+            #             depth=None
+            #         # depth=None
+            #         out_ori, out_occ,self.G_loss['test_ori_loss'],self.G_loss['test_occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,no_use_depth=self.opt.no_use_depth)
                     
-                    visualizer.board_current_errors(self.G_loss)
+            #         visualizer.board_current_errors(self.G_loss)
                     # if i==0:
                     #     save_image(out_img[0],"test_step_display1.png")
                     
@@ -220,7 +227,7 @@ class HairSpatNetSolver(BaseSolver):
             pred_ori=pred_ori.cpu().numpy()
             ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
             
-    def inference(self,image,use_step,bust=None,name=""):
+    def inference(self,image,use_step=True,bust=None,name=""):
         self.model.eval()
         with torch.no_grad():
             #以下相当于dataloader.generate_test_data()

@@ -75,15 +75,16 @@ class HairSpatDecoder(nn.Module):
 
 
     def forward(self, caches,points,sample=True,depth=None):
-        x,_=self.first_to_voxel(caches[-1],None,points,False)
+        x,_=self.first_to_voxel(caches[-1],None,points,False)#x:[1, 256, 6, 8, 8]
         # v=self.first_out_layer(x)
         for i in range(self.n_layer):
-            up=self.conv3d_transpose[i](x)
+            up=self.conv3d_transpose[i](x)#up:[1, 256, 12, 16, 16]，[1, 128, 24, 32, 32]，[1, 64, 48, 64, 64]，[1, 32, 96, 128, 128]
+                                          #x: [1, 256, 6, 8, 8],    [1, 256, 12, 16, 16], [1, 128, 24, 32, 32],[1, 64, 48, 64, 64]，[1, 32, 1, 1, 160000]                                                               
             x,phi = self.voxel_models[i](caches[-2 - i], up, points, last_layer=(i == self.n_layer - 1 and sample is True),depth=depth)
 
             # v=sample(v,2)
             # v+=self.out_models[i](x)
-        v=self.out_models[i](x)
+        v=self.out_models[i](x)#x:[1, 32, 1, 1, 160000] v:[1, 3, 1, 1, 160000]
         return v[:,:,0,0,:],phi[:,:,0,0,:]
 
 
@@ -121,7 +122,9 @@ class To_Voxel(nn.Module):
         return x
 
     def forward(self, x,up,points,last_layer=False,depth=None):
-        feat=self.to_Voxel_with_sdf(x,up,last_layer)
+        feat=self.to_Voxel_with_sdf(x,up,last_layer)#feat0:[1, 257, 6, 8, 8],[1, 513, 12, 16, 16]，[1, 257, 24, 32, 32]
+                                                    #x0:   [1, 256, 8, 8],   [1, 256, 16, 16]，   [1, 128, 32, 32]
+                                                    #up:   none,             [1, 256, 12, 16,16]，[1, 128, 24, 32, 32]
         if last_layer:
 
             points=(points*2)-1
@@ -130,11 +133,11 @@ class To_Voxel(nn.Module):
             points=torch.unsqueeze(points,dim=1)
             points=torch.unsqueeze(points,dim=1)
 
-            x=torch.nn.functional.grid_sample(feat,points , mode='bilinear')
+            x=torch.nn.functional.grid_sample(feat,points , mode='bilinear')#feat:[1, 65, 96, 128, 128]
             if depth is not None:
                 depth=torch.unsqueeze(depth,dim=2)
                 depth=torch.unsqueeze(depth,dim=2)
-                x=torch.cat([x,depth],dim=1)
+                x=torch.cat([x,depth],dim=1)#x:[1, 65, 1, 1, 107009],depth:[1, 1, 1, 1, 107009]
         else:
             x=feat
 
@@ -145,7 +148,8 @@ class To_Voxel(nn.Module):
         x=self.refine3(x)
         x=self.refine4(x)
 
-        return x,phi
+        return x,phi#x0:[1, 256, 6, 8, 8],[1, 256, 12, 16, 16]，[1, 128, 24, 32, 32]
+                    #phi0:[1, 1028, 6, 8, 8],[1, 2052, 12, 16, 16]，[1, 1028, 24, 32, 32]
 
 
 class UnetDecoder(nn.Module):
