@@ -113,7 +113,6 @@ class GrowingNetSolver(BaseSolver):
             for i,datas in enumerate(dataloader):
                 self.init_losses()
                 iter_counter.record_one_iteration()
-
                 # iter_counter.record_one_iteration()
                 strands,gt_orientation,labels=self.preprocess_input(datas)
 
@@ -145,6 +144,8 @@ class GrowingNetSolver(BaseSolver):
                     k=3
                 if epoch>100 and self.opt.condition is not False:
                     k=5
+                if epoch>200 and self.opt.condition is not False:
+                    k=10
                 if k>=2:
                     self.total_loss['rnn_p_loss']=0
                     self.total_loss['rnn_p_loss_Inv']=0
@@ -208,12 +209,12 @@ class GrowingNetSolver(BaseSolver):
                     drap_points=drap_points.permute(0,2,3,1)
                     drap_points=drap_points.cpu().detach().numpy()
                     drap_gt_points=drap_gt_points.cpu().detach().numpy()
-                    visualizer.draw_3d(drap_gt_points[0], drap_points[0], s,self.width,self.height,self.depth, "Forward3d")
+                    # visualizer.draw_3d(drap_gt_points[0], drap_points[0], s,self.width,self.height,self.depth, "Forward3d")
                     # visualizer.draw_samples(drap_gt_points[0], drap_points[0], s,self.width,self.height,self.depth, "Forward")
                     if self.opt.Bidirectional_growth:
                         drap_points_Inv = drap_points_Inv.permute(0, 2, 3, 1)
                         drap_points_Inv = drap_points_Inv.cpu().detach().numpy()
-                        visualizer.draw_3d(drap_gt_points[0], drap_points_Inv[0], s,self.width,self.height,self.depth, "Backward3d")
+                        # visualizer.draw_3d(drap_gt_points[0], drap_points_Inv[0], s,self.width,self.height,self.depth, "Backward3d")
                         # visualizer.draw_samples(drap_gt_points[0], drap_points_Inv[0], s,self.width,self.height,self.depth, "Backward")
 
 
@@ -412,11 +413,10 @@ class GrowingNetSolver(BaseSolver):
         return self.total_loss
 
     def update_learning_rate(self, epoch):
-        if epoch%70==0 and epoch!=0:
+        if epoch % self.opt.lr_update_freq==0 and epoch!=0:
             self.learning_rate=self.learning_rate/2
-
-        for param_group in self.optimizer_GN:
-            param_group['lr']=self.learning_rate
+        for params in self.optimizer_GN.param_groups:
+            params['lr']=self.learning_rate
 
 
 

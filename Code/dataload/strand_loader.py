@@ -34,8 +34,8 @@ class strand_loader(base_loader):
         random.shuffle(self.train_corpus)
 
         self.train_nums = len(self.train_corpus)
-        print('val strand:',self.val_corpus)
-        print('train strand:',self.train_corpus)
+        # print('val strand:',self.val_corpus)
+        # print('train strand:',self.train_corpus)
         print(f"num of training data: {self.train_nums}")
 
 
@@ -47,7 +47,17 @@ class strand_loader(base_loader):
         segments, points = load_strand(file_name,True)
 
         gt_orientation = get_ground_truth_3D_ori(file_name, False, growInv=self.opt.growInv)
-        sample_voxel = np.load(os.path.join(file_name, 'sample_voxel.npy'))
+        mask = np.linalg.norm(gt_orientation, axis=-1)
+        gt_occ = (mask > 0).astype(np.float32)[..., None]
+        gt_occ = torch.from_numpy(gt_occ)
+        gt_occ=gt_occ.permute(3,0,1,2)
+        gt_occ = close_voxel(gt_occ,5)
+        k=5
+        p=int(k/2)
+        with torch.no_grad():
+            weight_occ = F.max_pool3d(gt_occ, kernel_size=k, stride=1, padding=p)
+            sample_voxel = (weight_occ-gt_occ).numpy()[:,:,:,:,None]
+        # sample_voxel = np.load(os.path.join(file_name, 'sample_voxel.npy'))#(1, 96, 128, 128, 1)
         # sample_voxel = np.ones((1,4,4,4,1))
         strands, labels = sample_to_padding_strand1(sample_voxel, segments, points, self.pt_num, self.sd_num,
                                                     growInv=self.opt.growInv)
