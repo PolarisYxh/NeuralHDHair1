@@ -1268,7 +1268,19 @@ def sample_to_padding_strand1(sample_voxel,segments,points,pt_num,sd_num,growInv
         train_strands.append(train_strand[None])
 
     return np.concatenate(train_strands,axis=0),np.concatenate(labels,axis=0)
-
+def delete_strand_out_ori(mask,strands,segments):
+    s,v_num,c=strands.shape
+    strands1=np.copy(strands[:,:,[2,1,0]]).astype('int').reshape(-1,3)
+    m=mask[0].numpy()
+    occ=m[tuple(strands1.T)]
+    index=np.where(occ==0)[0]
+    s_index=index//v_num
+    s_index, counts = np.unique(s_index, return_counts=True)
+    i= counts>v_num//2#发丝一半以上在膨胀后的区域，则可以删除
+    s_index=s_index[i]
+    strands = np.delete(strands, s_index, axis=0)
+    segments = np.delete(segments, s_index, axis=0)
+    return strands,segments
 
 def delete_point_out_ori(mask,strands):
     all_points=[]
@@ -1289,6 +1301,7 @@ def delete_point_out_ori(mask,strands):
 
                 points.append(strand[vecI])
                 count+=1
+                count_label = 0
             else:
                 count_label+=1
 
@@ -1468,9 +1481,106 @@ def linear_sample( voxel, nPos, warp_fn=get_voxel_value, D=96, H=128, W=128, cal
                            V100[..., 0], V101[..., 0], V110[..., 0], V111[..., 0],
                            wz, wy, wx, cal_normal)
     return VO
+from copy import deepcopy
+def get_vox_slice_pic(V, sliceID=48):
+    sliceImg = deepcopy(V[sliceID, :, :, :])
+    mask = (sliceImg ** 2).sum(-1) > 1e-3
+    sliceImg[mask, :] = (sliceImg[mask, :] + 1.0) * 0.5
+    sliceImg = np.clip(sliceImg, 0, 1)
+    return sliceImg*255
+def draw_arrows_by_projection2(hair_ori, fileDir="", iter=0,draw_occ=True):
+    h = 128
+    w = 128
+    d = 96
+    flip = True
+    noise = True
+    
+    target = np.zeros((1024, 1024,3))
+    target = cv2.flip(target,flipCode=1)
+    # target = get_conditional_input_data(fileDir, flip, noise, image_size=1024) * 255
+    image = get_vox_slice_pic(hair_ori,48)/255 
+    # image = get_vox_total_pic(hair_ori)/255 # image 128*128*3, (0,1)
+    mask = (image**2).sum(-1) > 0
+    image = image * 2 - 1 #(-1,1)
 
+    for hh in range(h):
+        for ww in range(w):
+            if mask[hh, ww]:
 
+                o = image[hh, ww][:2]
+                o /= np.sqrt(np.sum(o**2) + 1e-8)#归一化
+                o[1] *= 1
 
+                # radius = 8
+                o *= 4
+                center = np.array([ww * 8 + 4, hh * 8 + 4])
+                pt1 = (center - o).astype(np.int32)
+                pt2 = (center + o).astype(np.int32)
+
+                cv2.arrowedLine(target, (pt1[0], pt1[1]), (pt2[0], pt2[1]), (0, 0, 255), 1,tipLength = 0.5)
+    if draw_occ:
+        cv2.imwrite(os.path.join(fileDir,f"pred_ori_{iter}_1.jpg"), target)
+    else:
+        cv2.imwrite(os.path.join(fileDir,f"pred_ori_{iter}.jpg"), target)
+def draw_circles_by_projection(hair_occ, fileDir="", iter=0,draw_occ=True):
+    h = 128
+    w = 128
+    d = 96
+    flip = True
+    noise = True
+    
+    target = np.zeros((1024, 1024,3))
+    target = cv2.flip(target,flipCode=1)
+
+    for hh in range(h):
+        for ww in range(w):
+            if hair_occ[0,48,hh, ww]:
+
+                center = np.array([ww * 8 + 4, hh * 8 + 4])
+
+                cv2.circle(target, center, 4, (0, 0, 255), 1)
+    if draw_occ:
+        cv2.imwrite(os.path.join(fileDir,f"pred_occ_{iter}_1.jpg"), target)
+    else:
+        cv2.imwrite(os.path.join(fileDir,f"pred_occ_{iter}.jpg"), target) 
+def draw_circles_by_projection1(hair_occ, fileDir="", iter=0,draw_occ=True):
+    h = 128
+    w = 128
+    d = 96
+    flip = True
+    noise = True
+    
+    target = np.zeros((1024, 1024,3))
+    target = cv2.flip(target,flipCode=1)
+
+    for x in hair_occ:
+        # center = np.array([x[0] * 8 + 4, x[1] * 8 + 4])
+        target[x[1] * 8 + 4,x[0] * 8 + 4]=[0, 0, 255]
+        # cv2.circle(target, center, 4, (0, 0, 255), 1)
+    if draw_occ:
+        cv2.imwrite(os.path.join(fileDir,f"pred_occ_{iter}_1.jpg"), target)
+    else:
+        cv2.imwrite(os.path.join(fileDir,f"pred_occ_{iter}.jpg"), target) 
+def close_voxel1(voxel,ori,k):
+    p=int(k/2)
+    with torch.no_grad():
+        # draw_circles_by_projection(voxel,iter=0)
+        weight_occ1 = F.max_pool3d(voxel, kernel_size=k, stride=1, padding=p)#膨胀
+        # draw_circles_by_projection(weight_occ1,iter=1)
+        weight_occ=F.avg_pool3d(weight_occ1,kernel_size=k, stride=1, padding=p)#膨胀
+        # draw_circles_by_projection(weight_occ,iter=2)
+        weight_occ[weight_occ<1]=0#膨胀
+        # draw_circles_by_projection(weight_occ,iter=3)
+        weight_occ+=voxel
+        weight_occ[weight_occ>0]=1
+        # draw_circles_by_projection(weight_occ,iter=4)
+        avg_ori=F.avg_pool3d(ori,kernel_size=k, stride=1, padding=p)
+        real_ori = ori*voxel+avg_ori*(weight_occ-voxel)#填充过空洞的ori
+        dilate_ori = real_ori+avg_ori*(weight_occ1-weight_occ)#膨胀过的的ori
+        # draw_arrows_by_projection2((ori*voxel).cpu().permute(1,2,3,0).numpy(),iter=0)
+        # draw_arrows_by_projection2(real_ori.cpu().permute(1,2,3,0).numpy(),iter=1)
+        # draw_arrows_by_projection2(dilate_ori.cpu().permute(1,2,3,0).numpy(),iter=2)
+    return real_ori, dilate_ori,weight_occ,weight_occ1  
 def close_voxel(voxel,k):
     p=int(k/2)
     with torch.no_grad():

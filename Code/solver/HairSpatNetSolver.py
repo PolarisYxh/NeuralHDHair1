@@ -8,7 +8,6 @@ import torch.nn.functional as F
 from Tools.utils import *
 from Models.Discriminator import Spat_Discriminator
 import torch.autograd
-from Tools.drawTools import draw_arrows_by_projection2
 class HairSpatNetSolver(BaseSolver):
 
     @staticmethod
@@ -227,7 +226,11 @@ class HairSpatNetSolver(BaseSolver):
             pred_ori=pred_ori.cpu().numpy()
             ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
             
+<<<<<<< Updated upstream
     def inference(self,image,use_step=True,bust=None,name=""):
+=======
+    def inference(self,image,use_step,bust=None,depth=None,name=""):
+>>>>>>> Stashed changes
         self.model.eval()
         with torch.no_grad():
             #以下相当于dataloader.generate_test_data()
@@ -244,8 +247,8 @@ class HairSpatNetSolver(BaseSolver):
                 # image = get_Bust("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1", image, self.opt.image_size)#TODO
             if isinstance(bust,np.ndarray):
                 image = get_Bust2(bust,image,self.opt.image_size,name=name)
-                if name!="":
-                    return
+                # if name!="":
+                #     return
             else:
                 image = get_Bust1(self.opt.current_path,image,self.opt.image_size)
             image = torch.unsqueeze(image, 0)
@@ -256,9 +259,10 @@ class HairSpatNetSolver(BaseSolver):
             if self.use_gpu():
                 image = image.cuda()
                 Ori2D = Ori2D.cuda()
-
-            out_ori, out_occ = self.model.test(image,Ori2D)
-            
+            if self.opt.no_use_depth:
+                out_ori, out_occ = self.model.test(image,Ori2D)
+            else:
+                out_ori, out_occ = self.model.test(image,Ori2D,depth_map=depth)
             out_occ[out_occ>=0.2]=1
             out_occ[out_occ<0.2]=0
             pred_ori=out_ori*out_occ

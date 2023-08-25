@@ -7,7 +7,7 @@ import torch
 import time
 import numpy as np
 import torch.nn
-
+from Tools.resample import resample,process_list
 class GrowingNetSolver(BaseSolver):
 
     @staticmethod
@@ -55,7 +55,7 @@ class GrowingNetSolver(BaseSolver):
             self.roots = scipy.io.loadmat(os.path.join(self.opt.current_path,"roots3.mat"), \
                         verify_compressed_data_integrity=False)['roots']
             # self.roots = self.roots[np.random.randint(0,self.roots.shape[0]-1,size=self.opt.num_root)]
-            self.roots=transform(self.roots)
+            self.roots=transform(self.roots)#[:,[2,1,0]]
 
     def create_optimizers(self,opt):
         GrowingNet_params=[]
@@ -228,10 +228,8 @@ class GrowingNetSolver(BaseSolver):
             self.update_learning_rate(epoch)
             iter_counter.record_epoch_end()
 
-    def get_pred_strands(self,datas):
+    def get_pred_strands(self,datas,ori=None):
         strands, gt_orientation,labels = self.preprocess_input(datas)
-
-
         with torch.no_grad():
             if self.opt.Bidirectional_growth:
                 pt_num = self.pt_num//2 #default is self.pt_num-1
@@ -273,6 +271,8 @@ class GrowingNetSolver(BaseSolver):
             out_points_2_Inv=out_points_2_Inv.cpu().numpy()
             labels_2_Inv=labels_2_Inv.cpu().numpy()
 
+        if isinstance(ori,np.ndarray):
+            mask1 = np.linalg.norm(ori[None,...], axis=-1)
 
         mask = np.linalg.norm(gt_orientation, axis=-1)
 
@@ -330,20 +330,39 @@ class GrowingNetSolver(BaseSolver):
         }
 
         return return_list
-    def generate_random_root(self):
-        occ=np.linalg.norm(self.gt_orientation,axis=-1)[0]
-        occ=(occ>0).astype(np.float32)
+    def generate_random_root(self,occ):
         # occ[:,30:,:]=0
         samle_voxel_index =np.where(occ>0)
         samle_voxel_index=np.array(samle_voxel_index)
         samle_voxel_index=samle_voxel_index.transpose(1,0)
-        random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
+        
+        back = np.min(samle_voxel_index[:,0], axis=0)
+        front = np.max(samle_voxel_index[:,0], axis=0)
+        low1 = np.min(samle_voxel_index[:,1], axis=0)
+        high1 = np.max(samle_voxel_index[:,1], axis=0)
+        left = np.min(samle_voxel_index[:,2], axis=0)
+        right = np.max(samle_voxel_index[:,2], axis=0)
+        mid = (low1+high1)//2
+        self.pt_num = int((high1-low1)*3)
+        low = np.min(self.roots[:,1],axis=0)
+        high = np.max(self.roots[:,1],axis=0)
+        samle_voxel_index2 = samle_voxel_index[np.where(samle_voxel_index[:,1]<=high)][...,:3]#对头皮毛孔以上的体素进行采样
+        # if high1-low1>90:
+        #     random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root*2)]
+        if mid>high:
+            samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==mid)][...,:3]
+            random_points=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root)]
+            random_points=np.append(random_points,samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)],axis=0)
+            # random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)]
+        else:
+            self.pt_num = 72
+            random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)]
         random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]
         random_points=random_points[...,None,:]
+        
         self.gt_orientation=torch.from_numpy(self.gt_orientation)
         random_points=torch.from_numpy(random_points)
         random_points=torch.reshape(random_points,(len(self.opt.gpu_ids),-1,1,3))
-
 
         return_list={
             'gt_ori': self.gt_orientation,
@@ -371,31 +390,117 @@ class GrowingNetSolver(BaseSolver):
             'labels': None
         }
         return return_list
-    def inference(self, ori):
+    def index(self,feat,uv):
+        '''
+        :param feat: [B, C, H, W] image features
+        :param uv: [B, N, 2] normalized image coordinates ranged in [-1, 1]
+        :return: [B, C, N] sampled pixel values
+        '''
+        uv=uv.unsqueeze(0).unsqueeze(0).to(torch.double)
+        feat=feat.unsqueeze(0).permute((0,3,1,2)).to(torch.double)
+        samples=torch.nn.functional.grid_sample(feat, uv, mode='bilinear',align_corners=True)
+        return samples[0,:,0,:]
+    def inference(self, ori, matrix,hair_img, avg_color,sample_num=-1):
         self.model.eval()
         with torch.no_grad():
             # ori = scipy.io.loadmat("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1/Ori_gt.mat", verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
             ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
-            ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
+            ori = ori.transpose([0, 1, 3, 2])# ori: 128*128*96*3
 
             transfer = True
             ori = np.ascontiguousarray(ori)
+            
+            # 旋转方向场到正面
+            ori = np.transpose(ori, (1,0,2,3)) #ori :交换x,y轴到 128,128,96,3
+            ori = ori[::-1, :, :,  :]   #x轴flip已对应旋转矩阵方向
+            
+            from skimage import transform as trans
+            mask=np.linalg.norm(ori,axis=-1)#ori : 128,128,96,3
+            gt_occ=(mask>0).astype(np.float32)
+            mask1 = np.array(np.where(gt_occ>0))
+            gt_occ1=mask1.T-np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
+
+            new_gt_occ = np.dot(gt_occ1, matrix)+np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
+            new_gt_occ = new_gt_occ.T.astype('int')
+            
+            index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= 95)
+            new_gt_occ = new_gt_occ[:,index]
+            mask1 = mask1[:,index]
+            index = (new_gt_occ[0] >= 0) & (new_gt_occ[0] <= 127)
+            new_gt_occ = new_gt_occ[:,index]
+            mask1 = mask1[:,index]
+            index = (new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)
+            new_gt_occ = new_gt_occ[:,(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)]
+            mask1 = mask1[:,index]
+            ori1 = ori[tuple(mask1)]
+            new_ori1 = np.dot(ori1.reshape((-1,3)),matrix)
+            ori = np.zeros_like(ori)
+            ori[new_gt_occ[0],new_gt_occ[1],new_gt_occ[2]] = new_ori1
+            
+            ori = ori[::-1, :, :,  :]
+            ori = np.transpose(ori, (1,0,2,3)) 
+            # 转换+填充voxel
+            ori = ori.transpose(2, 0, 1, 3)# 转换后ori: 96*128*128*3
+            occ=np.linalg.norm(ori,axis=-1)
+            occ=(occ>0).astype(np.float32)[...,None]
+            occ1 = torch.from_numpy(occ).permute((3,0,1,2))
+            k=3
+            p=int(k/2)
+            ori,dilate_ori,occ2,dilate_occ=close_voxel1(occ1,torch.from_numpy(ori.copy()).permute((3,0,1,2)),k)
+            # 腐蚀occ，作为采样的occ
+            k=4
+            p=k//2
+            occ1 = 1-F.max_pool3d(1-dilate_occ, kernel_size=k, stride=1, padding=p)
+            # draw_circles_by_projection(occ1,iter=3)
+            occ = occ1.cpu().numpy().transpose(1,2,3,0)
+            # 使用膨胀后的方向场进行生长，防止断发
+            ori1 = dilate_ori
+            ori1=ori1.cpu().numpy().transpose(1, 2, 3, 0)
             if transfer:
-                gt_orientation= ori*np.array([1,-1,-1])  # scaled
+                gt_orientation= ori1*np.array([1,-1,-1])  # scaled
             else:
-                gt_orientation= ori
+                gt_orientation= ori1
             gt_orientation = gt_orientation[None]
             self.gt_orientation = gt_orientation
             if self.opt.Bidirectional_growth:
-                datas=self.generate_random_root()
+                datas=self.generate_random_root(occ)
             else:
                 datas=self.generate_random_root_from_roots()
                 # datas=self.generate_test_data(self.opt.growInv)
-            final_strand_del_by_ori,final_segment = self.get_pred_strands(datas)
-            
+            final_strand_del_by_ori,final_segment = self.get_pred_strands(datas)#,ori.cpu().numpy().transpose(1, 2, 3, 0)
+            # 采样点
+            if sample_num!=-1:
+                final_strand_del_by_ori = process_list(final_strand_del_by_ori,final_segment,sample_num)
+                final_segment = (np.ones(len(final_strand_del_by_ori))*sample_num).astype("int")
+                final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
+                final_strand_del_by_ori = final_strand_del_by_ori.reshape(-1,3)
+            # x=np.array(final_strand_del_by_ori)[:,:].astype('int')
+            # draw_circles_by_projection1(x)
+            final_strand_del_by_ori1=(np.array(final_strand_del_by_ori[:,[0,1,2]])-np.array([64,64,48]))*np.array([-1,1,1])
+            final_strand_del_by_ori1 = (np.dot(final_strand_del_by_ori1, np.linalg.inv((matrix)))*np.array([-1,1,1])+np.array([64,64,48]))[:,[0,1,2]]
+                                        
+            # final_strand_del_by_ori1[:,0] = final_strand_del_by_ori1[:,0]-1.42 
+            final_strand_del_by_ori2 = torch.from_numpy(np.array(final_strand_del_by_ori1)[:,[0,1]]/64)-1
+            # 膨胀头发分割图,并进行采样
+            mask = np.sum(hair_img,axis=2)
+            mask[mask!=0]=1
+            mask = torch.from_numpy(mask.astype('float32')[...,None])
+            mask1=F.max_pool2d(mask, kernel_size=k*4+1, stride=1, padding=int(k*4/2))
+            mask2 = mask1-mask
+            hair_img[np.where(mask2==1)[:2]]=avg_color[:3]
+            mask3 = 1-F.max_pool2d(1-mask, kernel_size=k*4+1, stride=1, padding=int(k*4/2))
+            mask3 = mask-mask3
+            hair_img = torch.from_numpy(hair_img/255)
+            # save_image(hair_img.permute((2,0,1)),"./texture3.png")
+            hair_img1=F.avg_pool2d(hair_img.permute((2,0,1)), kernel_size=k*4+1, stride=1, padding=int(k*4/2)).permute((1,2,0))
+            hair_img=hair_img*(1-mask3[...,[0,0,0]])+hair_img1*mask3[...,[0,0,0]]
+            # save_image(hair_img.permute((2,0,1)),"./texture4.png")
+            colors = self.index(hair_img,final_strand_del_by_ori2).permute((1,0)).numpy()
+            colors = np.c_[colors, np.ones(len(colors))]
+            colors = (colors*255).astype('uint8')
             final_strand_del_by_ori = transform_Inv(final_strand_del_by_ori)
         # write_strand(final_strand_del_by_ori, self.opt, final_segment, 'ori')
-        return final_strand_del_by_ori,final_segment
+        return final_strand_del_by_ori,final_segment,colors
         # write_strand(final_strand_del_by_label, self.opt, final_segment_label, 'label')
 
 

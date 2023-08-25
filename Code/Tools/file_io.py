@@ -315,21 +315,59 @@ def writehair(file_name,points,segments):
 
     f.close()
     
-def get_data(file_name):
+def get_data(file_name,has_color=False):
     with open(file_name, "rb") as f:
         byte = f.read(4)
         strands_num=int.from_bytes(byte, sys.byteorder)
         i,j=0,0
         strands = []
+        colors = []
+        segments = []
         # pickle.loads(pickle.dumps(origin_list))
         for i in range(0, strands_num):
             byte = f.read(4)
             v_num = int.from_bytes(byte, sys.byteorder)
-            byte = f.read(4 * v_num * 3)
-            points = np.array(struct.unpack('f' * v_num * 3, byte)).reshape((-1,3))     
+            if has_color:
+                byte = f.read(4 * 3 * v_num)
+                points = np.array(struct.unpack('f' *3* v_num, byte)).reshape((-1,3))  
+                byte = f.read(3 * v_num)
+                color = np.array(struct.unpack('B' *3* v_num, byte)).reshape((-1,3))  
+            else:
+                byte = f.read(4 * v_num * 3)
+                points = np.array(struct.unpack('f' * v_num * 3, byte)).reshape((-1,3))     
             if v_num!=1:
+                segments.append(v_num)
                 strands.append(points.tolist())
-        return strands
+                if has_color:
+                    colors.append(color.tolist())
+        return np.array(strands).reshape((-1,3)) ,np.array(segments) ,np.array(colors).reshape((-1,3)) 
+def write_data(file_name,points,segments,colors=None):
+    with open(file_name, "wb") as f:#
+        f.write(struct.pack('I', len(segments)))
+        i,j=0,0
+        strands = []
+        # pickle.loads(pickle.dumps(origin_list))
+        num=0
+        has_color = False
+        if isinstance(colors,np.ndarray):
+            has_color = True
+        for i in range(0, len(segments)):
+            f.write(struct.pack('I', segments[i]))
+            v_num = segments[i]
+            x=points[num:num+v_num,:]
+            for vec in x:
+                f.write(struct.pack('f', vec[0]))
+                f.write(struct.pack('f', vec[1]))
+                f.write(struct.pack('f', vec[2]))
+            if has_color:
+                x=colors[num:num+v_num,:]
+                for vec in x:
+                    f.write(struct.pack('B', vec[0]))
+                    f.write(struct.pack('B', vec[1]))
+                    f.write(struct.pack('B', vec[2]))
+            # f.write(struct.pack('f' * v_num * 3,points[num:num+v_num,:].reshape((-1)).tolist()))
+            num=num+v_num
+
 try:
     from curvesAbc import CurvesAbc
 except:

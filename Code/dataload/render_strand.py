@@ -6,10 +6,10 @@ import os
 import sys
 import random
 sys.path.append(os.path.dirname(__file__))
-def render_strand(strands,segments,mesh=None,orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[]):
+def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
     scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1],bg_color=[0,0,0])
     if mesh:
-        mesh.visual.vertex_colors = np.array([0, 0, 0, 255])
+        mesh.visual.vertex_colors = vertex_colors
         mesh = pyrender.Mesh.from_trimesh(mesh)
         scene.add(mesh)
     # tri_geometry = mesh.geometry
@@ -19,8 +19,11 @@ def render_strand(strands,segments,mesh=None,orientation=None,mask=False,intensi
     #     mesh.visual.vertex_colors = np.array([255, 255, 255, 255])
     #     mesh = pyrender.Mesh.from_trimesh(tri_geometry[t])
     #     scene.add(mesh)
-    flags = pyrender.RenderFlags.FLAT | pyrender.RenderFlags.ALL_SOLID | pyrender.RenderFlags.SKIP_CULL_FACES
-    r = pyrender.OffscreenRenderer(viewport_width=256, viewport_height=int(256 / 1.0), point_size=1.0)
+    if mask:
+        flags = pyrender.RenderFlags.FLAT | pyrender.RenderFlags.ALL_SOLID | pyrender.RenderFlags.SKIP_CULL_FACES
+    else:
+        flags = pyrender.RenderFlags.RGBA | pyrender.RenderFlags.ALL_SOLID | pyrender.RenderFlags.SKIP_CULL_FACES
+    r = pyrender.OffscreenRenderer(viewport_width=width, viewport_height=int(width / 1.0), point_size=1.0)
     lines = []
     # root = []
     start = 0
@@ -30,7 +33,7 @@ def render_strand(strands,segments,mesh=None,orientation=None,mask=False,intensi
         if isinstance(orientation,np.ndarray):
             line = pyrender.Primitive(strands[start:start+length],color_0=orientation[i],mode=3)
         elif isinstance(strand_color,np.ndarray):
-            line = pyrender.Primitive(strands[start:start+length],color_0=strand_color[i],mode=3)
+            line = pyrender.Primitive(strands[start:start+length],color_0=strand_color[start:start+length],mode=3)
         else:
             colors = [[255,0,0,255],[0,255,0,255],[0,0,255,255]]
             line = pyrender.Primitive(strands[start:start+length],color_0=random.choice(colors),mode=3)
@@ -55,7 +58,7 @@ def render_strand(strands,segments,mesh=None,orientation=None,mask=False,intensi
     light_pose = camera_pose = transform.SimilarityTransform(translation=(0, 1.6, -5), rotation=(np.deg2rad(180),np.deg2rad(0),0), dimensionality=3)
     if not mask:
         scene.add(light, light_pose)
-        light1 = pyrender.DirectionalLight(color=[1.0, 1.0, 1.0], intensity=intensity)
+        light1 = pyrender.DirectionalLight(color=[0.5, 0.5, 0.5], intensity=intensity)
         light_pose = np.array([
             [1.0, 0.0, 0.0, 0.0],
             [0.0, 1.0, 0.0, 0.0],
@@ -88,6 +91,7 @@ def render_strand(strands,segments,mesh=None,orientation=None,mask=False,intensi
             colors.append(color)
             # cv2.imshow("1",color)
             # cv2.waitKey()
+    matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
     r.delete()
     depth = depth/(96*0.00567194)
     # depth = depth.astype('uint8')

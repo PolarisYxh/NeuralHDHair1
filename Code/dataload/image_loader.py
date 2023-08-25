@@ -158,7 +158,7 @@ class image_loader(base_loader):
         depth=depth.permute(2,0,1)
         data_list['depth']=depth
 
-        gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy((image.numpy().transpose(1,2,0)*255).astype('uint8')), flip, growInv=self.opt.growInv)
+        gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy(img2), flip, growInv=self.opt.growInv)
         # image,gt_orientation,strand2D=self.random_translation(image,gt_orientation,strand2D)
         # gt_orientation 96,128,128,3
         gt_orientation,data_list=self.random_translation(self.opt.image_size,gt_orientation,data_list)
