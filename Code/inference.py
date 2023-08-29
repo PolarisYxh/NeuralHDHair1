@@ -16,6 +16,15 @@ from skimage import transform as trans
 from dataload.render_strand import render_strand
 class strand_inference:
     def __init__(self,rFolder,use_step=True,use_depth=False,use_strand=False,Bidirectional_growth=False) -> None:
+        """_summary_
+
+        Args:
+            rFolder (_type_): _description_
+            use_step (bool, optional): 网络直接生成分割图和方向图，151 docker restart segmentall-server. Defaults to True.
+            use_depth (bool, optional): 需要使用归一化后的头发深度图作为输入. Defaults to False.
+            use_strand (bool, optional): segmentanything网络直接生成分割图,本地生成方向图，151 docker restart segmentall-server. Defaults to False.
+            Bidirectional_growth (bool, optional): _description_. Defaults to False.
+        """        
         self.img_filter = filter_crop("/home/yxh/Documents/company/NeuralHDHair/Code",\
                                       "/home/yxh/Documents/company/NeuralHDHair/data/test",\
                                       use_step=use_step,use_depth=use_depth,use_strand=use_strand)
@@ -41,7 +50,7 @@ class strand_inference:
         self.iter[self.opt.model_name] = self.opt.which_iter
         self.opt.check_name="2023-05-11_bust_prev3"
         self.opt.condition=True
-        self.opt.num_root = 9000
+        self.opt.num_root = 12000
         self.opt.Bidirectional_growth = Bidirectional_growth
         self.opt.growInv=False
         self.growing_solver = GrowingNetSolver()
@@ -49,18 +58,24 @@ class strand_inference:
         
         self.opt.model_name="HairSpatNet"
         self.opt.save_root="checkpoints/HairSpatNet"
-        # self.opt.which_iter=1640000#2023-04-17_bust,1640000 utils 1539 line color5.png，使用color5训练的
-        # self.opt.which_iter=885000#2023-06-06_bust_rot, utils 1539 line body_0.png，使用body_0训练的
-        self.opt.which_iter=51000#2023-07-31_bust_rot, random rot, no depth 39000
-        # self.opt.which_iter=5000#2023-07-31_bust_rot_depth,use norm depth
+        # self.opt.which_iter=1640000#2023-04-17_bust,1640000 utils 1539 line color5.png，使用color5训练的;input_nc =2
+        # self.opt.which_iter=885000#2023-06-06_bust_rot, utils 1539 line body_0.png，使用body_0训练的;input_nc =2
+        
+        if use_depth:
+            self.opt.input_nc = 3
+            self.opt.check_name="2023-07-31_rot_depth1"
+            self.opt.which_iter=81840#2023-07-31_rot_depth1,use norm depth;input_nc =3
+        else:
+            self.opt.input_nc = 2
+            self.opt.which_iter=51000#2023-07-31_bust_rot, random rot, no depth 39000;input_nc =2
+            self.opt.check_name="2023-07-31_bust_rot"
         self.opt.no_use_L = True
-        self.opt.no_use_depth=not use_depth
+        self.opt.no_use_depth=True
         self.opt.blur_ori = False
         self.iter[self.opt.model_name] = self.opt.which_iter
         # self.opt.check_name="2023-04-17_bust"
         # self.opt.check_name="2023-06-06_bust_rot"
-        self.opt.check_name="2023-07-31_bust_rot"
-        # self.opt.check_name="2023-07-31_bust_rot_depth"
+        
         self.spat_solver = HairSpatNetSolver()
         self.spat_solver.initialize(self.opt)
         self.sample_num=100
@@ -74,17 +89,20 @@ class strand_inference:
         reset()
         # set_camera()
         ori2D,bust,color,rgb_image = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
-        # cv2.imshow("1",bust)
-        # cv2.imshow("2",ori2D)
-        # cv2.imshow("3",rgb_image)
+        # cv2.imshow('1',ori2D)
+        # cv2.imshow('2',bust)
+        # cv2.imshow('3',rgb_image)
         # cv2.waitKey()
-        if self.opt.no_use_depth==False:
+        if self.opt.input_nc==3:
             mask = np.zeros_like(bust)
-            mask[np.where(np.sum(ori2D,axis=2)>0)]=1
-            # cv2.imshow("3",mask)
+            parse = ori2D[:, :, 2]
+            mask1=ori2D[:, :, [0, 1]]
+            mask1[np.where(parse<0.8)]=[0,0]
+            mask[np.where(np.sum(mask1,axis=2)>0)]=1
+            # cv2.imshow("4",mask)
             # cv2.waitKey()
-            depth_norm=self.img_filter.get_depth(image,mask)
-            orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,depth=depth_norm,name=name)
+            depth_norm=self.img_filter.get_depth(rgb_image,mask)
+            orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=None,norm_depth=depth_norm,use_bust=False,name=name)
         # ori2D = image
         else:
             orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=name)
@@ -94,7 +112,6 @@ class strand_inference:
         m=self.img_filter.revert_rot
         points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color,sample_num=self.sample_num)
         mask = np.sum(colors,axis=1)
-        x=np.where(mask==255)
         colors[np.where(mask==255)]=color
         #旋转点
         # points = points+np.array([0.00703544,-1.58652416,-0.01121912])
@@ -116,48 +133,48 @@ class strand_inference:
         _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
         cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_py1.png"),img2)
         # 转换到unity空间
-        # m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
-        # points = np.array(points).reshape([-1,3])
-        # points=transform.matrix_transform(points,m.params)
+        m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
+        points = np.array(points).reshape([-1,3])
+        points=transform.matrix_transform(points,m.params)
         
-        # trans_hair(points,segments,color[[2,1,0,3]].tolist(),self.sample_num)
+        trans_hair(points,segments,color[[2,1,0,3]].tolist(),self.sample_num)
         # # # time.sleep(1)
-        # if use_gt:
-        #     render(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
-        #     time.sleep(1)
-        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
-        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"),img)
-        #     set_camera(30)
-        #     render(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
-        #     time.sleep(1)
-        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
-        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"),img)
-        #     set_camera(-30)
-        #     render(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"))
-        #     time.sleep(1)
-        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"))
-        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"),img)
-        # else:
-        #     render(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
-        #     time.sleep(1)
-        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
-        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1.png"),img)
-        #     set_camera(30)
-        #     render(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
-        #     time.sleep(1)
-        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
-        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_2.png"),img)
-        #     set_camera(-30)
-        #     render(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
-        #     time.sleep(1)
-        #     img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
-        #     img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
-        #     cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
+        if use_gt:
+            render(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"),img)
+            set_camera(30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"),img)
+            set_camera(-30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"),img)
+        else:
+            render(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1.png"),img)
+            set_camera(30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_2.png"),img)
+            set_camera(-30)
+            render(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
+            time.sleep(1)
+            img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
+            img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
+            cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
         
 if __name__=="__main__":
     # gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/10_f.png")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
@@ -190,14 +207,14 @@ if __name__=="__main__":
     # trans_hair(roots,2)  
     gender = ['female','male']
     set_bgcolor()
-    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),use_step=False,use_depth=False,use_strand=True,Bidirectional_growth=True)
+    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),use_step=True,use_depth=True,use_strand=False,Bidirectional_growth=True)
     save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out_paper/"
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
         # test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img"
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/paper"
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[:]):#31:32，19
+        for name in tqdm(file_names[0:]):#31:32，19
             # name = "10_f.png"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)

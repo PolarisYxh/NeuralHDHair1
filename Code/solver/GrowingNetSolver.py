@@ -472,6 +472,7 @@ class GrowingNetSolver(BaseSolver):
             if sample_num!=-1:
                 final_strand_del_by_ori = process_list(final_strand_del_by_ori,final_segment,sample_num)
                 final_segment = (np.ones(len(final_strand_del_by_ori))*sample_num).astype("int")
+                #删除大部分在膨胀区域的发丝
                 final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
                 final_strand_del_by_ori = final_strand_del_by_ori.reshape(-1,3)
             # x=np.array(final_strand_del_by_ori)[:,:].astype('int')

@@ -1276,7 +1276,7 @@ def delete_strand_out_ori(mask,strands,segments):
     index=np.where(occ==0)[0]
     s_index=index//v_num
     s_index, counts = np.unique(s_index, return_counts=True)
-    i= counts>v_num//2#发丝一半以上在膨胀后的区域，则可以删除
+    i= counts>v_num//3*2#发丝一半以上在膨胀后的区域，则可以删除
     s_index=s_index[i]
     strands = np.delete(strands, s_index, axis=0)
     segments = np.delete(segments, s_index, axis=0)

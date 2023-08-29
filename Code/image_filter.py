@@ -47,20 +47,20 @@ class filter_crop:
             self.hair_step = HairStepInterface(rFolder)
         else:
             self.segall = segmentAllInterface(rFolder)
-        self.use_depth = use_depth
-        if use_depth:
-            self.depthPred = Model().cuda()
-            # self.depthPred = torch.nn.DataParallel(self.depthPred)
-            self.depthPred.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2depth.pth")))
-            self.depthPred.eval()
-            # from img2depth import hairDepth
-            # self.depthPred=hairDepth(os.path.join(rFolder,"../checkpoints/img2depth.pth"))
         self.use_strand = use_strand#使用hairstep标准流程，用sam分割及hairstep strand生成方向图
         if use_strand:
             self.strandmodel = strandModel().cuda()
             # self.strandmodel = torch.nn.DataParallel(self.strandmodel)
             self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand.pth")))
             self.strandmodel.eval()
+        self.use_depth = use_depth
+        if use_depth:
+            self.depthPred = Model().cuda()
+            self.depthPred = torch.nn.DataParallel(self.depthPred)
+            self.depthPred.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2depth.pth")))
+            self.depthPred.eval()
+            # from img2depth import hairDepth
+            # self.depthPred=hairDepth(os.path.join(rFolder,"../checkpoints/img2depth.pth"))
         self.insight_face_info = get_face_info(rFolder,False)
         #mean_landmark.json get from data/bust/color5.png,mean_landmark1.json from data/bust/body_0.png
         # self.mean_lms = np.array(readjson("mean_landmark1.json")['lms_3d'])
@@ -87,7 +87,7 @@ class filter_crop:
         self.use_gt=use_gt
         crop_image,mask,img1 = self.get_hair_seg(img,gender,image_name)
         if self.use_step or self.use_gt:
-            avg_color,image=self.get_hair_avgcolor(img1,crop_image)
+            avg_color,image=self.get_hair_avgcolor1(img1,crop_image)
             avg_color=np.append(avg_color,255)
             return crop_image,mask,avg_color,image
         if self.use_strand:
@@ -142,6 +142,24 @@ class filter_crop:
         # cv2.imshow("2",ori2D)
         # cv2.waitKey()
         return ori2D,mask,avg_color,image1
+    def get_hair_avgcolor1(self,img,mask):
+        parse = mask[:, :, 2]
+        mask1=mask[:, :, [0, 1]]
+        mask1[np.where(parse<0.8)]=[0,0]
+        
+        mask1=cv2.resize(mask1,(img.shape[1],img.shape[0]))
+        mask1=np.sum(mask1,axis=2)
+        mask1[mask1>0]=1
+        image = np.copy(img)
+        image[mask1==0]=[0,0,0]
+    
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15,15))
+        mask1 = cv2.erode(mask1,kernel)
+        crop_image1=cv2.resize(np.copy(img),mask1.shape[:2])
+        crop_image1[mask1==0]=[0,0,0]
+        avg_color = np.sum(np.sum(crop_image1,axis=0),axis=0)/np.sum(mask1>0)
+        crop_image1[mask1==0]=avg_color
+        return avg_color.astype('int'),image
     def get_hair_avgcolor(self,img,mask):
         mask = cv2.cvtColor(mask,cv2.COLOR_RGB2GRAY)
         mask[mask>0]=1
@@ -201,10 +219,13 @@ class filter_crop:
             step = cv2.warpAffine(step,
                                 M, (640, 640),
                                 borderValue=0.0)
+            img1 = cv2.warpAffine(framesForHair[0],
+                                M, (640, 640),
+                                borderValue=0.0)
             # cv2.imshow("1",step)
             # cv2.waitKey()
             step = cv2.resize(step,(256,256))
-            return step,bust,framesForHair[0]
+            return step,bust,img1
         if self.use_gt:
             gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
             # TODO:两种方式得到的segment图不太一样，seg中的对散发也能分割。哪个比较好 后续进行实验
