@@ -43,10 +43,10 @@ class strand_loader(base_loader):
 
     def __getitem__(self, index):
         file_name=self.train_corpus[index]
+        is_hd = True
+        segments, points = load_strand(file_name,True,is_hd=is_hd)
 
-        segments, points = load_strand(file_name,True)
-
-        gt_orientation = get_ground_truth_3D_ori(file_name, False, growInv=self.opt.growInv)
+        gt_orientation = get_ground_truth_3D_ori(file_name, False, growInv=self.opt.growInv,is_hd=is_hd)
         mask = np.linalg.norm(gt_orientation, axis=-1)
         gt_occ = (mask > 0).astype(np.float32)[..., None]
         gt_occ = torch.from_numpy(gt_occ)

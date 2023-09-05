@@ -122,24 +122,22 @@ class image_loader(base_loader):
             image[:,:,2]=image[:,:,2]+oriImg1*depth
             image[:,:,1]=image[:,:,1]+oriImg1*depth
 
-        image = image[:, :, [2, 1]].astype(np.float32)
-        image=torch.from_numpy(image)
-        image=image.permute(2,0,1)
-        Ori2D = image.clone()
+        image1 = image[:, :, [2, 1]].astype(np.float32)
+        image1=torch.from_numpy(image1)
+        image1=image1.permute(2,0,1)
+        Ori2D = image1.clone()
         # save_image(torch.cat([Ori2D.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], 'test.png')
 
-        data_list['image']=image
-        if self.opt.use_HD:
-            add_info=get_add_info(file_name,self.opt.strand_size,self.opt.info_mode,use_gt=True)
-            # strand2D=get_strand2D(file_name,self.opt.strand_size,self.opt.strand_mode,use_gt)
-            if self.opt.info_mode!='L':
-                add_info=torch.from_numpy(add_info)
-                add_info=add_info.permute(2,0,1)
-            data_list['add_info']=add_info
-
+        data_list['image']=image1
         depth=cv2.resize(depth,(self.opt.image_size,self.opt.image_size))
-        depth=depth[:,:,None]*95.0
-        if self.opt.input_nc==3:
+        depth=depth[:,:,None]
+        if self.opt.use_HD or self.opt.input_nc==3:
+            # add_info=get_add_info(file_name,self.opt.strand_size,self.opt.info_mode,use_gt=True)
+            # # strand2D=get_strand2D(file_name,self.opt.strand_size,self.opt.strand_mode,use_gt)
+            # if self.opt.info_mode!='L':
+            #     add_info=torch.from_numpy(add_info)
+            #     add_info=add_info.permute(2,0,1)
+            # data_list['add_info']=add_info
             mask1=np.zeros_like(mask)
             area=np.where((mask>0) & (depth[:, :, 0]>0))
             mask1[area]=1
@@ -151,14 +149,20 @@ class image_loader(base_loader):
             # cv2.imwrite("depth_norm.png",(depth_norm*255).astype('uint8'))
             depth_norm=torch.from_numpy(depth_norm[:,:,None])
             depth_norm=depth_norm.permute(2,0,1)
-            image=torch.cat([image,depth_norm], dim=0)
-            data_list['image']=image
-            # save_image(image, 'depth.png')
+            if self.opt.use_HD:
+                data_list['add_info']=depth_norm
+            if self.opt.input_nc==3:
+                image1=torch.cat([image1,depth_norm], dim=0)
+                data_list['image']=image1
+                # save_image(image, 'depth.png')
+
         depth=torch.from_numpy(depth)
         depth=depth.permute(2,0,1)
         data_list['depth']=depth
-
-        gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy((image.numpy().transpose(1,2,0)*255).astype('uint8')), flip, growInv=self.opt.growInv)
+        if self.opt.model_name=='HairSpatNet':
+            gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy((image*255).astype('uint8')), flip, growInv=self.opt.growInv)
+        elif self.opt.model_name=='HairModelingHD':
+            gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy((image*255).astype('uint8')), flip, growInv=self.opt.growInv,is_hd=True)
         # image,gt_orientation,strand2D=self.random_translation(image,gt_orientation,strand2D)
         # gt_orientation 96,128,128,3
         gt_orientation,data_list=self.random_translation(self.opt.image_size,gt_orientation,data_list)
@@ -183,8 +187,8 @@ class image_loader(base_loader):
             'add_info':add_info,
             'depth':data_list['depth']
         }
-        if self.opt.no_use_depth==False:
-            return_list['norm_depth']=data_list['norm_depth']
+        # if self.opt.no_use_depth==False:
+        #     return_list['depth']=data_list['depth']
         return return_list
 
     def generate_test_data(self):

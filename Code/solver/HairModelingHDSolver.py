@@ -6,7 +6,7 @@ from Tools.utils import *
 import torch.autograd
 from Models.Local_filter import Local_Filter
 class HairModelingHDSolver(BaseSolver):
-
+    # use add_info to fine train
     @staticmethod
     def modify_options(parser):
         parser.set_defaults(save_root='checkpoints/HairModelingHD')
@@ -43,14 +43,14 @@ class HairModelingHDSolver(BaseSolver):
         self.net_global.print_network()
         self.net_local.print_network()
         if not opt.no_use_pretrain:
-            path=os.path.join(opt.current_path,'checkpoints', opt.pretrain_path, 'checkpoint')
+            path=os.path.join(opt.current_path, opt.save_root, opt.pretrain_path)
             self.net_global=self.load_network(self.net_global,'HairSpatNet',opt.which_iter,opt,specify_path=path)
         else:
             self.net_global.init_weights(opt.init_type, opt.init_variance)
         if opt.continue_train or opt.isTrain is False:
             path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
             if os.path.exists(path):
-                self.net_global = self.load_network(self.net_global, 'HairModelingGlobal', opt.which_iter, opt)
+                # self.net_global = self.load_network(self.net_global, 'HairModelingGlobal', opt.which_iter, opt)
                 self.net_local = self.load_network(self.net_local, 'HairModelingLocal', opt.which_iter, opt)
         else:
             print(" Training from Scratch! ")
@@ -104,12 +104,12 @@ class HairModelingHDSolver(BaseSolver):
                 self.init_losses()
                 iter_counter.record_one_iteration()
 
-                image,gt_orientation,gt_occ,Ori2D,add_info= self.preprocess_input(datas)# ori.png(orientation map),(size,3,96,128,128),(size,1,96,128,128),
+                image,gt_orientation,gt_occ,Ori2D,add_info= self.preprocess_input(datas)#ori.png(orientation map),(size,3,96,128,128),(size,1,96,128,128),
                 # save_image(add_info,'test.png')
-                unsample = torch.nn.Upsample(scale_factor=self.opt.resolution[0]//96, mode='trilinear')
-                gt_occ_low=gt_occ.clone()
-                gt_orientation = unsample(gt_orientation)#size,3,96,128,128 to size,3,192,256,256
-                gt_occ=unsample(gt_occ)
+                # unsample = torch.nn.Upsample(scale_factor=self.opt.resolution[0]//96, mode='trilinear')
+                # gt_occ_low=gt_occ.clone()
+                # gt_orientation = unsample(gt_orientation)#size,3,96,128,128 to size,3,192,256,256
+                # gt_occ=unsample(gt_occ)
 
 
                 out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, resolution=self.opt.resolution)
@@ -119,7 +119,7 @@ class HairModelingHDSolver(BaseSolver):
                 self.loss_backward(self.loss_local,self.optimizer_local)
 
 
-
+                visualizer.board_current_errors(self.loss_local)
                 if iter_counter.needs_printing():
 
                     losses = self.get_latest_losses()
@@ -139,13 +139,13 @@ class HairModelingHDSolver(BaseSolver):
                           (epoch, iter_counter.total_steps_so_far))
                     self.save_network(self.net_local, 'HairModelingLocal', iter_counter.total_steps_so_far, self.opt)
                     self.save_network(self.net_local, 'HairModelingLocal', 'latest', self.opt)
-                    self.save_network(self.net_global, 'HairModelingGlobal', iter_counter.total_steps_so_far, self.opt)
-                    self.save_network(self.net_global, 'HairModelingGlobal', 'latest', self.opt)
+                    # self.save_network(self.net_global, 'HairModelingGlobal', iter_counter.total_steps_so_far, self.opt)
+                    # self.save_network(self.net_global, 'HairModelingGlobal', 'latest', self.opt)
 
                     iter_counter.record_current_iter()
             self.update_learning_rate(epoch)
             iter_counter.record_epoch_end()
-
+            visualizer.print_epoch_errors(epoch, iter_counter.epoch_iter)
     def test(self,dataloader):
         with torch.no_grad():
             datas = dataloader.generate_test_data()

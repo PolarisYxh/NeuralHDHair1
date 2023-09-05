@@ -98,7 +98,7 @@ def get_vox_total_pic(V, dd=1):
 
     return Img * 255
 
-def show(ori,img):
+def show(ori,img,scale=1):
     img = cv2.resize(img,(1024,1024))
     ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
     ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
@@ -108,8 +108,8 @@ def show(ori,img):
     mask = (image**2).sum(-1) > 0
     image = image * 2 - 1 #(-1,1)
     img = cv2.flip(img,flipCode=1)
-    h = 128
-    w = 128
+    h = 128*scale
+    w = 128*scale
     for hh in range(h):
         for ww in range(w):
             if mask[hh, ww]:
@@ -119,8 +119,8 @@ def show(ori,img):
                 o[1] *= 1
 
                 # radius = 8
-                o *= 4
-                center = np.array([ww * 8 + 4, hh * 8 + 4])
+                o *= 4/scale
+                center = np.array([ww * 8/scale + 4/scale, hh * 8/scale + 4/scale])
                 pt1 = (center - o).astype(np.int32)
                 pt2 = (center + o).astype(np.int32)
 
@@ -504,7 +504,7 @@ def get_ground_truth_3D_occ(d, flip=False):
     occ = np.ascontiguousarray(occ)
     return occ
 
-def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
+def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False,is_hd=False):
     file = os.path.join(d, "Ori3D.mat").replace("\\", "/")
     transfer=False
     if not os.path.exists(file):
@@ -515,11 +515,15 @@ def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
             file=os.path.join(d, "Ori_gt.mat").replace("\\", "/")
         transfer=True
     # print(file) ori: 128*128*288
-    ori = scipy.io.loadmat(file, verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
+    if is_hd==False:
+        ori = scipy.io.loadmat(file, verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
+    else:
+        ori = np.load(os.path.join(d, 'Ori_gt_hg.npy'))
+    s=[ori.shape[0],ori.shape[1],ori.shape[2]//3]
     # show(ori,img)
     # 旋转方向场
     ori = np.transpose(ori, (1,0,2)) 
-    ori = ori.reshape((128, 128, 3, 96))   
+    ori = ori.reshape((s[0], s[1], 3, -1))   
     ori = ori.transpose([0, 1, 3, 2])
     ori = ori* np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
     from skimage import transform as trans
@@ -530,14 +534,14 @@ def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
     gt_occ1=mask1.T-np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
     new_gt_occ = trans.matrix_transform(gt_occ1, tform.params)+np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
     new_gt_occ = new_gt_occ.T.astype('int')
-    index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= 95)
+    index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= s[2]-1)
     new_gt_occ = new_gt_occ[:,index]
     mask1 = mask1[:,index]
-    index = (new_gt_occ[0] >= 0) & (new_gt_occ[0] <= 127)
+    index = (new_gt_occ[0] >= 0) & (new_gt_occ[0] <= s[1]-1)
     new_gt_occ = new_gt_occ[:,index]
     mask1 = mask1[:,index]
-    index = (new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)
-    new_gt_occ = new_gt_occ[:,(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)]
+    index = (new_gt_occ[1] >= 0) & (new_gt_occ[1] <= s[0]-1)
+    new_gt_occ = new_gt_occ[:,(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= s[0]-1)]
     mask1 = mask1[:,index]
     
     ori1 = ori[tuple(mask1)]
@@ -548,9 +552,12 @@ def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
 
     new_ori = new_ori*np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
     new_ori = new_ori.transpose([0, 1, 3, 2])
-    new_ori = new_ori.reshape((128, 128, -1))
-    new_ori = np.transpose(new_ori, (1,0,2))  
-    # show(new_ori,img)
+    new_ori = new_ori.reshape((s[0], s[1], -1))
+    new_ori = np.transpose(new_ori, (1,0,2)) 
+    # if is_hd==False:
+    #     show(new_ori,img)
+    # else:
+    #     show(new_ori,img,2)
     ori = new_ori
     #原来的
     ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
@@ -565,7 +572,7 @@ def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False):
     else:
         return ori
 
-def get_ground_truth_3D_ori(d, flip=False,growInv=False):
+def get_ground_truth_3D_ori(d, flip=False,growInv=False,is_hd=False):
     file = os.path.join(d, "Ori3D.mat").replace("\\", "/")
     transfer=False
     if not os.path.exists(file):
@@ -576,7 +583,10 @@ def get_ground_truth_3D_ori(d, flip=False,growInv=False):
             file=os.path.join(d, "Ori_gt.mat").replace("\\", "/")
         transfer=True
     # print(file) ori: 128*128*288
-    ori = scipy.io.loadmat(file, verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
+    if is_hd==False:
+        ori = scipy.io.loadmat(file, verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
+    else:
+        ori = np.load(os.path.join(d, 'Ori_gt_hg.npy'))
     ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
     ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
 
@@ -757,7 +767,7 @@ def get_all_the_data(dirs,is_rot=False):
     #Delete data with number greater than 600
     for file in files:
         # if is_rot==False:
-        if "_v14" in file or "_v13" in file:
+        if "_v" in file :#or "_v13" in file
             continue
         data.append(os.path.join(dirs,file))
         # if int(file[2:])>600:
@@ -1026,8 +1036,11 @@ def load_root(file,trans=True):
     if trans:
         points=transform(points)
     return points
-def load_strand(d,trans=True):
-    file = os.path.join(d, "hair_delete.hair").replace("\\", "/")
+def load_strand(d,trans=True,is_hd=False):
+    if is_hd:
+        file = os.path.join(d, "hair_delete.hair").replace("\\", "/")
+    else:
+        file = os.path.join(d, "hair_delete_hg.hair").replace("\\", "/")
     with open(file, mode='rb')as f:
         num_strand = f.read(4)
         (num_strand,) = struct.unpack('I', num_strand)

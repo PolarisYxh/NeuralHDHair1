@@ -58,7 +58,7 @@ class BaseSolver(nn.Module):
     def load_network(self,net, label, epoch, opt,specify_path=None):
         if specify_path is not None:
             save_path=specify_path
-            save_path=os.path.join(save_path,label+'_'+opt.which_iter+'.pth')
+            # save_path=os.path.join(save_path,label+'_'+opt.which_iter+'.pth')
         else:
             save_filename = '%s_%s.pth' % (label, epoch)
             save_dir = os.path.join(opt.current_path,opt.save_root, opt.check_name,'checkpoint')

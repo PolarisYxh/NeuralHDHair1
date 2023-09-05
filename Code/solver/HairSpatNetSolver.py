@@ -136,7 +136,7 @@ class HairSpatNetSolver(BaseSolver):
 
                 if torch.sum(depth)==0:
                     depth=None
-                # depth=None
+                depth=None#关闭按照深度图计算不同位置的loss权重的功能
                 if self.opt.no_use_depth==False:
                     out_ori, out_occ,self.G_loss['ori_loss'],self.G_loss['occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,norm_depth=norm_depth,no_use_depth=self.opt.no_use_depth)
                 else:
