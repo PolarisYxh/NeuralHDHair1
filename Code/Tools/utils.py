@@ -1037,7 +1037,7 @@ def load_root(file,trans=True):
         points=transform(points)
     return points
 def load_strand(d,trans=True,is_hd=False):
-    if is_hd:
+    if not is_hd:
         file = os.path.join(d, "hair_delete.hair").replace("\\", "/")
     else:
         file = os.path.join(d, "hair_delete_hg.hair").replace("\\", "/")
@@ -1061,23 +1061,26 @@ def load_strand(d,trans=True,is_hd=False):
     points=np.array(points)
     points=np.reshape(points,(-1,3))
     if trans:
-        points=transform(points)
+        if is_hd:
+            points=transform(points,2)
+        else:
+            points=transform(points)
 
     return segments,points
 
-def transform(points):
+def transform(points,scale=1):
     '''
 
     :param points: 原始点云
     :return: 体素化的点云
     '''
     mul=1
-    stepInv = 1. / (0.00567194/mul)#voxel 边长0.00567194
+    stepInv = 1. / (0.00567194/scale/mul)#voxel 边长0.00567194
     gridOrg= np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
 
     points -= gridOrg
     points *= np.array([1., -1., -1.], dtype=np.float32) * stepInv  #opengl中xyz坐标轴与python中不一样，此处为一个调整，可以不管，/stepInv  step就是每个体素的边长
-    points += np.array([0, 128*mul, 96*mul], dtype=np.float32)   #使所有点坐标的值落在[0-96,0-128,0-128]之间
+    points += np.array([0, 128*scale*mul, 96*scale*mul], dtype=np.float32)   #使所有点坐标的值落在[0-96,0-128,0-128]之间
 
     # points = np.maximum(points,
     #                     np.array([0, 0, 0], dtype=np.float32))  # note that voxels out of boundaries are minus
