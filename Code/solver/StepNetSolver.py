@@ -10,7 +10,6 @@ import torch.nn
 import torch.nn.functional as F
 from Tools.utils import *
 import torch.autograd
-from Tools.drawTools import draw_arrows_by_projection2
 import torchvision
 class StepNetSolver(BaseSolver):
 

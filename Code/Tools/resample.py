@@ -70,4 +70,4 @@ def process_list(strands,segments,num=100):
         nums.append(num)
     with concurrent.futures.ProcessPoolExecutor() as executor:
         results = list(executor.map(resample_same_concurrent, new_strands,nums))
-    return results
+    return np.array(results)

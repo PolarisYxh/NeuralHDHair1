@@ -2,6 +2,7 @@ import numpy as np
 import pyrender
 from skimage import transform
 import cv2
+import random
 def render_strand(strands,mesh=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[]):
     scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1])
     if mesh:
@@ -23,7 +24,8 @@ def render_strand(strands,mesh=None,mask=False,intensity=3.0, strand_color = Non
         if isinstance(strand_color,np.ndarray):
             line = pyrender.Primitive(strand,color_0=strand_color[i],mode=3)
         else:
-            line = pyrender.Primitive(strand,color_0=(0,0,0,255),mode=3)
+            colors = [[255,0,0,255],[0,255,0,255],[255,255,0,255]]
+            line = pyrender.Primitive(strand,color_0=random.choice(colors),mode=3)
         lines.append(line)
         root.append(strand[0])
         

@@ -8,6 +8,9 @@ import cv2
 import trimesh
 import os
 from skimage import transform
+import struct
+import sys
+from Tools.render_strand import render_strand
 def show3Dhair(axis, strands, mask):
     """
     strands: [32, 32, 300]
@@ -63,21 +66,72 @@ def render(body_mesh,convdata,current_RT_mat=np.identity(4), isshow=False):
         cv2.imshow("1",img)
         cv2.waitKey()
     return img
-    
-# if __name__=="__main__":  
+def load_strand(d,trans=True):
+    file = os.path.join(d, "hair_delete.hair").replace("\\", "/")#和usc 里头发位置一致
+    with open(file, mode='rb')as f:
+        num_strand = f.read(4)
+        (num_strand,) = struct.unpack('I', num_strand)
+        point_count = f.read(4)
+        (point_count,) = struct.unpack('I', point_count)
+
+        # print("num_strand:",num_strand)
+        segments = f.read(2 * num_strand)
+        segments = struct.unpack('H' * num_strand, segments)
+        segments = list(segments)
+        num_points = sum(segments)
+
+        points = f.read(4 * num_points * 3)
+        points = struct.unpack('f' * num_points * 3, points)
+    f.close()
+    points=list(points)
+    # points=[[points[i*3+0],points[i*3+1],points[i*3+2]] for i in range(len(points)//3)]
+    points=np.array(points)
+    points=np.reshape(points,(-1,3))
+    if trans:
+        points=transform(points)
+    return segments,points
+if __name__=="__main__":  
+    dir_name = "/home/yxh/Documents/HairNet/hairstyles"
+    file_names = os.listdir(dir_name)
+    if ".hair" in file_names[0]:
+        segments,strand1 = load_strand("/home/yxh/Documents/HairNet_DataSetGeneration/neuraldata/DB1",trans=False)
+    elif ".data" in file_names[0]:
+        with open(os.path.join(dir_name,file_names[0]), "rb") as f:
+            byte = f.read(4)
+            strands_num=int.from_bytes(byte, sys.byteorder)
+            i,j=0,0
+            strand1 = np.array([])
+            segments = []
+            for i in range(0, strands_num):
+                byte = f.read(4)
+                v_num = int.from_bytes(byte, sys.byteorder)
+                byte = f.read(4 * v_num * 3)
+                if v_num==1:
+                    continue
+                segments.append(v_num)
+                points = np.array(struct.unpack('f' * v_num * 3, byte))     
+                # strands.append(points.reshape((-1,3)))
+                strand1=np.append(strand1,points)
+            strand1 = strand1.reshape((-1,3))
+    workdir = os.path.dirname(__file__)
+    mesh = trimesh.load(os.path.join(workdir,'../../female_halfbody_medium.obj'))
+    strand1=strand1.reshape((-1,100,3))
+    img = render_strand(strand1,mesh,intensity=3,mask=False)
+    cv2.imshow("1",img[0])
+    cv2.waitKey()
 #     current_RT_mat = gen_RT_matrix("/home/yxh/Documents/HairNet_DataSetGeneration/Train/test/strands00002_00004_10000_v0.txt")
 #     # current_RT_mat = np.identity(4)
 #     current_convdata_path = "/home/yxh/Documents/HairNet_DataSetGeneration/Train/convdata/strands00002_00004_10000.convdata"
 #     # current_convdata = get_rendered_convdata(current_convdata_path, current_RT_mat)
 #     current_convdata = np.load(current_convdata_path).reshape(100, 4, 32, 32)
-#     mask_path = "/home/yxh/Documents/HairNet_DataSetGeneration/Train/test/strands00002_00004_10000_v0.vismap"
-#     current_visweight = gen_vis_weight(mask_path)
+# #     mask_path = "/home/yxh/Documents/HairNet_DataSetGeneration/Train/test/strands00002_00004_10000_v0.vismap"
+# #     current_visweight = gen_vis_weight(mask_path)
 
-#     rgb_image = cv2.imread("/home/yxh/Documents/HairNet_DataSetGeneration/Train/test/strands00002_00004_10000_v0.png")
-#     # hairstyle = "/home/yxh/Documents/HairNet"
+# #     rgb_image = cv2.imread("/home/yxh/Documents/HairNet_DataSetGeneration/Train/test/strands00002_00004_10000_v0.png")
+# #     # hairstyle = "/home/yxh/Documents/HairNet"
 #     workdir = os.path.dirname(__file__)
     
-#     mesh = trimesh.load(os.path.join(workdir,'female_halfbody_medium.obj'))
+    
 #     render(mesh, current_convdata)
 #     render(mesh, current_convdata, current_RT_mat)
     

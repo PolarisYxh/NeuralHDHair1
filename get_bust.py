@@ -3,7 +3,12 @@ import numpy as np
 import cv2
 from copy import deepcopy
 from skimage import transform
-import pyrender
+import platform
+import os
+import dataload.pyrender as pyrender
+plat = platform.system().lower()
+if plat != 'windows':
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
 import json
 def readjson(file):
     with open(file, 'r', encoding="utf-8") as load_f:
@@ -47,6 +52,9 @@ def render(tri_sence, preview_file="", bOrtho=False, intensity=2, matrix=[]):
     matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
     # print(matrix)
     img = cv2.cvtColor(color, cv2.COLOR_RGBA2BGR)
+    img[:,:,0]=depth/(96*0.00567194)
+    img[:,:,1]=depth/(96*0.00567194)
+    img[:,:,2]=depth/(96*0.00567194)
     r.delete()
     if preview_file != "":
         cv2.imwrite(preview_file, img)
@@ -56,10 +64,10 @@ if __name__=="__main__":
     vertices_orig = deepcopy(body.vertices)
     lms = vertices_orig[[2636,2523,6052,2498,2481,3676,3760,1864,3640,3630,3557,3560,3457,3579,3326,3288,3068,4747,4724,4720,35,1066,4439,4482,4497,4399,4394],:]
     angs = [[0,0],[15,0],[-15,0],[0,30],[0,15],[0,-15],[0,-30]]
-    angs_pair = readjson("angs_pair.json")
+    angs_pair = readjson("angs_pair1.json")
     for file in angs_pair:
         angs=angs_pair[file]
-        for k in range(7,10):
+        for k in range(13,15):
             vertices = vertices_orig
             vertices = vertices+np.array([0.00703544,-1.58652416,-0.01121912])
             tform = transform.SimilarityTransform(rotation=[np.deg2rad(angs[k][0]),np.deg2rad(angs[k][1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1

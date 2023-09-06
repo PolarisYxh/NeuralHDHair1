@@ -234,7 +234,7 @@ class HairSpatNet(BaseNetwork):
 
         n=self.test_points.size(1)//step+1
         if not self.opt.no_use_depth:
-            self.get_depth_feat(depth_map,self.test_points)
+            self.get_depth_feat1(depth_map,self.test_points)
             depth = self.depth_feat
         else:
             depth = None
