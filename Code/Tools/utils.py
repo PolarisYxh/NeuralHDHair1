@@ -97,24 +97,43 @@ def get_vox_total_pic(V, dd=1):
             maskA = np.logical_or(maskA, maskB)
 
     return Img * 255
+from copy import deepcopy
+def get_vox_slice_pic(V, sliceID=48,mode=0):
+    if mode==2:#从右往左看
+        sliceImg = deepcopy(V[ :, :, sliceID, :]).transpose((1,0,2))
+    elif mode==0:#从前往后看
+        sliceImg = deepcopy(V[ sliceID, :, :, :])
+    elif mode==1:
+        sliceImg = deepcopy(V[ :, sliceID, :, :])
+    mask = (sliceImg ** 2).sum(-1) > 1e-3
+    sliceImg[mask, :] = (sliceImg[mask, :] + 1.0) * 0.5
+    sliceImg = np.clip(sliceImg, 0, 1)
+    return sliceImg*255
 
-def show(ori,img,scale=1):
+def show_slice(ori,img,scale=1,mode=0):
     img = cv2.resize(img,(1024,1024))
-    ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
-    ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
-    ori = ori[:, :, ::-1, :]* np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
-    image = get_vox_total_pic(ori)
+    ori1 = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+    ori1 = ori1.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
+    ori1 = ori1[:, :, ::-1, :]* np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
+    image = get_vox_slice_pic(ori1,64,mode)
     image = image/255
     mask = (image**2).sum(-1) > 0
     image = image * 2 - 1 #(-1,1)
     img = cv2.flip(img,flipCode=1)
     h = 128*scale
     w = 128*scale
+    if mode==0:
+        image = image[:,:,[0,1]]
+    elif mode==2:
+        w = 96*scale
+        image = image[:,:,[2,1]]
+    elif mode==1:
+        h = 96*scale
     for hh in range(h):
         for ww in range(w):
             if mask[hh, ww]:
 
-                o = image[hh, ww][:2]
+                o = image[hh, ww]#0:左右，1：上下，2：前后
                 o /= np.sqrt(np.sum(o**2) + 1e-8)#归一化
                 o[1] *= 1
 
@@ -125,10 +144,40 @@ def show(ori,img,scale=1):
                 pt2 = (center + o).astype(np.int32)
 
                 cv2.arrowedLine(img, (pt1[0], pt1[1]), (pt2[0], pt2[1]), (0, 0, 255), 1,tipLength = 0.5)
-    cv2.imwrite("ori2_3d.png",img)
+    cv2.imwrite("ori2_3d1.png",img)
     # cv2.imshow("2.png",image.astype('uint8'))
     # cv2.waitKey()
+def show(ori,img,scale=1):
+    img = cv2.resize(img,(1024,1024))
+    ori1 = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+    ori1 = ori1.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
+    ori1 = ori1[:, :, ::-1, :]* np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
+    image = get_vox_total_pic(ori1)
+    image = image/255
+    mask = (image**2).sum(-1) > 0
+    image = image * 2 - 1 #(-1,1)
+    img = cv2.flip(img,flipCode=1)
+    h = 128*scale
+    
+    w = 128*scale
+    for hh in range(h):
+        for ww in range(w):
+            if mask[hh, ww]:
 
+                o = image[hh, ww][[0,1]]#0:左右，1：上下，2：前后
+                o /= np.sqrt(np.sum(o**2) + 1e-8)#归一化
+                o[1] *= 1
+
+                # radius = 8
+                o *= 4/scale
+                center = np.array([ww * 8/scale + 4/scale, hh * 8/scale + 4/scale])
+                pt1 = (center - o).astype(np.int32)
+                pt2 = (center + o).astype(np.int32)
+
+                cv2.arrowedLine(img, (pt1[0], pt1[1]), (pt2[0], pt2[1]), (0, 0, 255), 1,tipLength = 0.5)
+    cv2.imwrite("ori2_3d1.png",img)
+    # cv2.imshow("2.png",image.astype('uint8'))
+    # cv2.waitKey()
 def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_depth=False,use_gt=False,use_conf=False):
 
     if mode=='Ori':#方向图，只要1,2通道
@@ -1090,14 +1139,14 @@ def transform(points,scale=1):
 
     return points
 
-def transform_Inv(points):
-    mul=int(np.max(points)//128+1)
+def transform_Inv(points,scale=1):
+    mul=int(np.max(points)//(128*scale)+1)
     print('mul:',mul)
 
-    stepInv = 1. / (0.00567194/mul)
+    stepInv = 1. / (0.00567194/scale/mul)
     gridOrg = np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
 
-    points-= np.array([0, 128*mul, 96*mul], dtype=np.float32)
+    points-= np.array([0, 128*scale*mul, 96*scale*mul], dtype=np.float32)
     points *= np.array([1., -1., -1.], dtype=np.float32) / stepInv
     points += gridOrg
 
@@ -1302,7 +1351,7 @@ def delete_point_out_ori(mask,strands):
     all_points=[]
     strands=strands[0]
     segments=[]
-    _,D,H,W=mask.shape[:]
+    _,D,H,W=mask.shape[:]#96,128,128
     for i in range(strands.shape[0]):
         points = []
         strand=strands[i]
@@ -1497,13 +1546,7 @@ def linear_sample( voxel, nPos, warp_fn=get_voxel_value, D=96, H=128, W=128, cal
                            V100[..., 0], V101[..., 0], V110[..., 0], V111[..., 0],
                            wz, wy, wx, cal_normal)
     return VO
-from copy import deepcopy
-def get_vox_slice_pic(V, sliceID=48):
-    sliceImg = deepcopy(V[sliceID, :, :, :])
-    mask = (sliceImg ** 2).sum(-1) > 1e-3
-    sliceImg[mask, :] = (sliceImg[mask, :] + 1.0) * 0.5
-    sliceImg = np.clip(sliceImg, 0, 1)
-    return sliceImg*255
+
 def draw_arrows_by_projection2(hair_ori, fileDir="", iter=0,draw_occ=True):
     h = 128
     w = 128

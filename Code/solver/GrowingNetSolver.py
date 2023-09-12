@@ -55,7 +55,7 @@ class GrowingNetSolver(BaseSolver):
             self.roots = scipy.io.loadmat(os.path.join(self.opt.current_path,"roots3.mat"), \
                         verify_compressed_data_integrity=False)['roots']
             # self.roots = self.roots[np.random.randint(0,self.roots.shape[0]-1,size=self.opt.num_root)]
-            self.roots=transform(self.roots)#[:,[2,1,0]]
+            self.roots=transform(self.roots,scale=self.height//128)#[:,[2,1,0]]
 
     def create_optimizers(self,opt):
         GrowingNet_params=[]
@@ -228,53 +228,90 @@ class GrowingNetSolver(BaseSolver):
             self.update_learning_rate(epoch)
             iter_counter.record_epoch_end()
 
-    def get_pred_strands(self,datas,ori=None):
+    def get_pred_strands(self,datas,ori_orient=None,use_rule=False):
         strands, gt_orientation,labels = self.preprocess_input(datas)
-        with torch.no_grad():
-            if self.opt.Bidirectional_growth:
-                pt_num = self.pt_num//2 #default is self.pt_num-1
-                print('begin.....')
-                start = time.time()
-                # wcenters,wlatents=self.model_on_one_gpu.encoder(gt_orientation)
-                # wlatents=wlatents.expand(len(self.opt.gpu_ids),*wlatents.size()[1:])
-                # print(wlatents.size())
-                # wcenters=wcenters.expand(len(self.opt.gpu_ids),*wcenters.size()[1:])
-                # print('encoder cost:',time.time()-start)
-                # gt_orientation = close_voxel(gt_orientation, 5)
-                gt_orientation=gt_orientation.expand(len(self.opt.gpu_ids),*gt_orientation.size()[1:])
-                out_points_2, labels_2, out_points_2_Inv, labels_2_Inv=self.model(strands,gt_orientation,pt_num,'rnn')
-                # torch.cuda.synchronize()
-                print('grow cost:', time.time() - start)
+        if use_rule:
+            num_strand = strands.shape[2]
+            hair_strands = torch.zeros(100, 3, num_strand).cuda()
+            curr_node = strands.squeeze()
+            hair_strands[0] = curr_node#gt_orientation按照前后，上下，左右顺序;hair_strands,strands相反按照左右，上下，前后;curr_node_orien按照左右，上下，前后
+            for i in range(1,99):
+                index = curr_node.to(torch.long)
+                index[0:2]=torch.clip(index[0:2],0,gt_orientation.shape[3]-1)
+                index[2:]=torch.clip(index[2:],0,gt_orientation.shape[2]-1)
+                curr_node_orien = gt_orientation[0,:,index[2],index[1],index[0]]#1,3,96,128,128
+                # curr_node_orien = curr_node_orien*x
+                # curr_node_orien = torch.flip(curr_node_orien,dims=[0])#curr_node_orien变为按照前后，上下，左右
+                hair_strands[i] = hair_strands[i-1] + 0.8 * curr_node_orien
+                curr_node = hair_strands[i]
+            hair_strands[:,:2,:] = torch.clip(hair_strands[:,:2,:],0,gt_orientation.shape[3]-1)
+            hair_strands[:,2,:] = torch.clip(hair_strands[:,2,:],0,gt_orientation.shape[2]-1)
+            out_points_2 = hair_strands.permute(1,2,0).unsqueeze(0)
+            
+            hair_strands_inv = torch.zeros(100, 3, num_strand).cuda()
+            curr_node = strands.squeeze()
+            hair_strands_inv[0] = curr_node
+            for i in range(1,99):
+                index = curr_node.to(torch.long)
+                index[0:2]=torch.clip(index[0:2],0,gt_orientation.shape[3]-1)
+                index[2:]=torch.clip(index[2:],0,gt_orientation.shape[2]-1)
+                curr_node_orien = gt_orientation[0,:,index[2],index[1],index[0]]
 
-            else:
-                pt_num = self.pt_num #default is self.pt_num-1
-                out_points_2, labels_2 = self.model(strands,gt_orientation,pt_num,'rnn')
+                hair_strands_inv[i] = hair_strands_inv[i-1] - 0.8*curr_node_orien
+                curr_node = hair_strands_inv[i]
+            hair_strands_inv[:,:2,:] = torch.clip(hair_strands_inv[:,:2,:],0,gt_orientation.shape[3]-1)
+            hair_strands_inv[:,2,:] = torch.clip(hair_strands_inv[:,2,:],0,gt_orientation.shape[2]-1)
+            out_points_2_Inv = hair_strands_inv.permute(1,2,0).unsqueeze(0)
+            pt_num = 100
+        else:
+            with torch.no_grad():
+                if self.opt.Bidirectional_growth:
+                    pt_num = self.pt_num//2 #default is self.pt_num-1
+                    print('begin.....')
+                    start = time.time()
+                    # wcenters,wlatents=self.model_on_one_gpu.encoder(gt_orientation)
+                    # wlatents=wlatents.expand(len(self.opt.gpu_ids),*wlatents.size()[1:])
+                    # print(wlatents.size())
+                    # wcenters=wcenters.expand(len(self.opt.gpu_ids),*wcenters.size()[1:])
+                    # print('encoder cost:',time.time()-start)
+                    # gt_orientation = close_voxel(gt_orientation, 5)
+                    gt_orientation=gt_orientation.expand(len(self.opt.gpu_ids),*gt_orientation.size()[1:])
+                    out_points_2, labels_2, out_points_2_Inv, labels_2_Inv=self.model(strands,gt_orientation,pt_num,'rnn')
+                    # torch.cuda.synchronize()
+                    print('grow cost:', time.time() - start)
+
+                else:
+                    pt_num = self.pt_num #default is self.pt_num-1
+                    out_points_2, labels_2 = self.model(strands,gt_orientation,pt_num,'rnn')
 
 
         print(out_points_2.size())
         gt_orientation=gt_orientation.permute(0,2,3,4,1)
         out_points_2=out_points_2.permute(0,2,3,1)
-        labels_2=labels_2.permute(0,2,3,1)
+        if self.opt.pred_label:
+            labels_2=labels_2.permute(0,2,3,1)
 
         out_points_2 = out_points_2.reshape(1, -1,  pt_num, 3)
-        labels_2 = labels_2.reshape(1, -1,  pt_num,2)
+        if self.opt.pred_label:
+            labels_2 = labels_2.reshape(1, -1,  pt_num,2)
 
         gt_orientation=gt_orientation.cpu().numpy()
         out_points_2=out_points_2.cpu().numpy()
-        labels_2=labels_2.cpu().numpy()
+        if self.opt.pred_label:
+            labels_2=labels_2.cpu().numpy()
         if self.opt.Bidirectional_growth:
 
             out_points_2_Inv = out_points_2_Inv.permute(0, 2, 3, 1)
-            labels_2_Inv = labels_2_Inv.permute(0, 2, 3, 1)
+            if self.opt.pred_label:
+                labels_2_Inv = labels_2_Inv.permute(0, 2, 3, 1)
+                labels_2_Inv=labels_2_Inv.reshape(1,-1,pt_num,2)
+                labels_2_Inv=labels_2_Inv.cpu().numpy()
             out_points_2_Inv=out_points_2_Inv.reshape(1,-1,pt_num,3)
-            labels_2_Inv=labels_2_Inv.reshape(1,-1,pt_num,2)
             out_points_2_Inv=out_points_2_Inv.cpu().numpy()
-            labels_2_Inv=labels_2_Inv.cpu().numpy()
-
-        if isinstance(ori,np.ndarray):
-            mask1 = np.linalg.norm(ori[None,...], axis=-1)
-
-        mask = np.linalg.norm(gt_orientation, axis=-1)
+        if isinstance(ori_orient,np.ndarray):
+            mask = np.linalg.norm(ori_orient[None,...], axis=-1)
+        else:
+            mask = np.linalg.norm(gt_orientation, axis=-1)
 
         strand_delete_by_ori, segment = delete_point_out_ori(mask, out_points_2)
         if self.opt.pred_label:
@@ -331,16 +368,15 @@ class GrowingNetSolver(BaseSolver):
 
         return return_list
     def generate_random_root(self,occ):
-        # occ[:,30:,:]=0
         samle_voxel_index =np.where(occ>0)
         samle_voxel_index=np.array(samle_voxel_index)
         samle_voxel_index=samle_voxel_index.transpose(1,0)
         
-        back = np.min(samle_voxel_index[:,0], axis=0)
+        back = np.min(samle_voxel_index[:,0], axis=0)#前后
         front = np.max(samle_voxel_index[:,0], axis=0)
-        low1 = np.min(samle_voxel_index[:,1], axis=0)
+        low1 = np.min(samle_voxel_index[:,1], axis=0)#上下
         high1 = np.max(samle_voxel_index[:,1], axis=0)
-        left = np.min(samle_voxel_index[:,2], axis=0)
+        left = np.min(samle_voxel_index[:,2], axis=0)#左右
         right = np.max(samle_voxel_index[:,2], axis=0)
         mid = (low1+high1)//2
         self.pt_num = int((high1-low1)*3)
@@ -353,7 +389,7 @@ class GrowingNetSolver(BaseSolver):
             samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==mid)][...,:3]
             random_points=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root)]
             random_points=np.append(random_points,samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)],axis=0)
-            # random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)]
+            random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)]
         else:
             self.pt_num = 72
             random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)]
@@ -409,7 +445,10 @@ class GrowingNetSolver(BaseSolver):
 
             transfer = True
             ori = np.ascontiguousarray(ori)
-            
+            s = [ori.shape[0],ori.shape[1],ori.shape[2]]
+            scale=1
+            if s[0]==256:
+                scale=2
             # 旋转方向场到正面
             ori = np.transpose(ori, (1,0,2,3)) #ori :交换x,y轴到 128,128,96,3
             ori = ori[::-1, :, :,  :]   #x轴flip已对应旋转矩阵方向
@@ -423,14 +462,8 @@ class GrowingNetSolver(BaseSolver):
             new_gt_occ = np.dot(gt_occ1, matrix)+np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
             new_gt_occ = new_gt_occ.T.astype('int')
             
-            index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= 95)
+            index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= s[2]-1)&(new_gt_occ[0] >= 0) & (new_gt_occ[0] <= s[0]-1)&(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= s[1]-1)
             new_gt_occ = new_gt_occ[:,index]
-            mask1 = mask1[:,index]
-            index = (new_gt_occ[0] >= 0) & (new_gt_occ[0] <= 127)
-            new_gt_occ = new_gt_occ[:,index]
-            mask1 = mask1[:,index]
-            index = (new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)
-            new_gt_occ = new_gt_occ[:,(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= 127)]
             mask1 = mask1[:,index]
             ori1 = ori[tuple(mask1)]
             new_ori1 = np.dot(ori1.reshape((-1,3)),matrix)
@@ -447,6 +480,36 @@ class GrowingNetSolver(BaseSolver):
             k=3
             p=int(k/2)
             ori,dilate_ori,occ2,dilate_occ=close_voxel1(occ1,torch.from_numpy(ori.copy()).permute((3,0,1,2)),k)
+            # 方向场周围包一圈指向方向场的方向
+            # Define 3D Sobel operator
+            sobel_x = torch.tensor([[[[1, 0, -1], [2, 0, -2], [1, 0, -1]],
+                                    [[2, 0, -2], [4, 0, -4], [2, 0, -2]],
+                                    [[1, 0, -1], [2, 0, -2], [1, 0, -1]]]]).unsqueeze(0).float()*(-1)#左右
+
+            sobel_y = torch.tensor([[[[1, 2, 1], [0, 0, 0], [-1, -2, -1]],
+                                    [[2, 4, 2], [0, 0, 0], [-2, -4, -2]],
+                                    [[1, 2, 1], [0, 0, 0], [-1, -2, -1]]]]).unsqueeze(0).float()#上下
+
+            sobel_z = torch.tensor([[[[1, 2, 1], [2, 4, 2], [1, 2, 1]],
+                                    [[0, 0, 0], [0, 0, 0], [0, 0 ,0]],
+                                    [[-1,-2,-1],[-2,-4,-2],[-1,-2,-1]]]]).unsqueeze(0).float()#前后
+
+            occ3=occ2.unsqueeze(0)
+            # Apply Sobel operator
+            G_x = F.conv3d(occ3, sobel_x, stride=1,padding='same').squeeze(0)
+            G_y = F.conv3d(occ3, sobel_y, stride=1,padding='same').squeeze(0)
+            G_z = F.conv3d(occ3, sobel_z, stride=1,padding='same').squeeze(0)
+
+            # Calculate magnitude
+            G = torch.sqrt(G_x**2 + G_y**2 + G_z**2)
+            ori_edge = torch.concat((G_x,G_y,G_z),0)/G
+            ori_edge = torch.where(torch.isnan(ori_edge), 0,ori_edge)
+            ori_edge = torch.where(occ2>0,ori, ori_edge)
+            
+            # ori_edge1=F.avg_pool3d(ori_edge,kernel_size=3, stride=1, padding=1)
+            # mask = torch.norm(ori_edge, dim=0)
+            # ori_edge = torch.where(mask>0, ori_edge, ori_edge1)
+            # show_slice(ori_edge.permute((2,3,0,1)).numpy(),img = np.zeros((1024,1024,3)),mode=2)
             # 腐蚀occ，作为采样的occ
             k=4
             p=k//2
@@ -454,34 +517,34 @@ class GrowingNetSolver(BaseSolver):
             # draw_circles_by_projection(occ1,iter=3)
             occ = occ1.cpu().numpy().transpose(1,2,3,0)
             # 使用膨胀后的方向场进行生长，防止断发
-            ori1 = dilate_ori
+            ori1 = ori_edge
             ori1=ori1.cpu().numpy().transpose(1, 2, 3, 0)
             if transfer:
                 gt_orientation= ori1*np.array([1,-1,-1])  # scaled
             else:
                 gt_orientation= ori1
-            gt_orientation = gt_orientation[None]
-            self.gt_orientation = gt_orientation
+            self.gt_orientation = gt_orientation[None]
             if self.opt.Bidirectional_growth:
                 datas=self.generate_random_root(occ)
             else:
                 datas=self.generate_random_root_from_roots()
                 # datas=self.generate_test_data(self.opt.growInv)
-            final_strand_del_by_ori,final_segment = self.get_pred_strands(datas)#,ori.cpu().numpy().transpose(1, 2, 3, 0)
+            final_strand_del_by_ori,final_segment = self.get_pred_strands(datas,ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),\
+                                                                          use_rule=True)#ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),
             # 采样点
             if sample_num!=-1:
                 final_strand_del_by_ori = process_list(final_strand_del_by_ori,final_segment,sample_num)
                 final_segment = (np.ones(len(final_strand_del_by_ori))*sample_num).astype("int")
                 #删除大部分在膨胀区域的发丝
-                final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
+                # final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
                 final_strand_del_by_ori = final_strand_del_by_ori.reshape(-1,3)
             # x=np.array(final_strand_del_by_ori)[:,:].astype('int')
             # draw_circles_by_projection1(x)
-            final_strand_del_by_ori1=(np.array(final_strand_del_by_ori[:,[0,1,2]])-np.array([64,64,48]))*np.array([-1,1,1])
-            final_strand_del_by_ori1 = (np.dot(final_strand_del_by_ori1, np.linalg.inv((matrix)))*np.array([-1,1,1])+np.array([64,64,48]))[:,[0,1,2]]
+            final_strand_del_by_ori1=(np.array(final_strand_del_by_ori[:,[0,1,2]])-np.array([s[0]//2,s[1]//2,s[2]//2]))*np.array([-1,1,1])
+            final_strand_del_by_ori1 = (np.dot(final_strand_del_by_ori1, np.linalg.inv((matrix)))*np.array([-1,1,1])+np.array([s[0]//2,s[1]//2,s[2]//2]))[:,[0,1,2]]
                                         
             # final_strand_del_by_ori1[:,0] = final_strand_del_by_ori1[:,0]-1.42 
-            final_strand_del_by_ori2 = torch.from_numpy(np.array(final_strand_del_by_ori1)[:,[0,1]]/64)-1
+            final_strand_del_by_ori2 = torch.from_numpy(np.array(final_strand_del_by_ori1)[:,[0,1]]/(s[0]//2))-1
             # 膨胀头发分割图,并进行采样
             mask = np.sum(hair_img,axis=2)
             mask[mask!=0]=1
@@ -499,7 +562,7 @@ class GrowingNetSolver(BaseSolver):
             colors = self.index(hair_img,final_strand_del_by_ori2).permute((1,0)).numpy()
             colors = np.c_[colors, np.ones(len(colors))]
             colors = (colors*255).astype('uint8')
-            final_strand_del_by_ori = transform_Inv(final_strand_del_by_ori)
+            final_strand_del_by_ori = transform_Inv(final_strand_del_by_ori,scale=scale)
         # write_strand(final_strand_del_by_ori, self.opt, final_segment, 'ori')
         return final_strand_del_by_ori,final_segment,colors
         # write_strand(final_strand_del_by_label, self.opt, final_segment_label, 'label')

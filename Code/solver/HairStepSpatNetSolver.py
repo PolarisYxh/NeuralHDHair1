@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from Tools.utils import *
 from Models.Discriminator import Spat_Discriminator
 import torch.autograd
-class HairSpatNetSolver(BaseSolver):
+class HairStepSpatNetSolver(BaseSolver):
 
     @staticmethod
     def modify_options(parser):
@@ -135,7 +135,7 @@ class HairSpatNetSolver(BaseSolver):
 
                 if torch.sum(depth)==0:
                     depth=None
-                depth=None#关闭按照深度图计算不同位置的loss权重的功能
+                # depth=None
                 if self.opt.no_use_depth==False:
                     out_ori, out_occ,self.G_loss['ori_loss'],self.G_loss['occ_loss'] = self.model(image,gt_occ,gt_orientation,depth_map=depth,norm_depth=norm_depth,no_use_depth=self.opt.no_use_depth)
                 else:
@@ -225,7 +225,66 @@ class HairSpatNetSolver(BaseSolver):
             pred_ori=pred_ori.permute(0,2,3,4,1)
             pred_ori=pred_ori.cpu().numpy()
             ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
-            
+
+    def reconstruction(net, cuda, calib_tensor,
+                   resolution, b_min, b_max,
+                   use_octree=False, num_samples=10000, transform=None):
+        '''
+        Reconstruct meshes from sdf predicted by the network.
+        :param net: a BasePixImpNet object. call image filter beforehead.
+        :param cuda: cuda device
+        :param calib_tensor: calibration tensor
+        :param resolution: resolution of the grid cell
+        :param b_min: bounding box corner [x_min, y_min, z_min]
+        :param b_max: bounding box corner [x_max, y_max, z_max]
+        :param use_octree: whether to use octree acceleration
+        :param num_samples: how many points to query each gpu iteration
+        :return: marching cubes results.
+        '''
+        # First we create a grid by resolution
+        # and transforming matrix for grid coordinates to real world xyz
+        coords, mat = create_grid(resolution, resolution, resolution,
+                                b_min, b_max, transform=transform)
+
+        # Then we define the lambda function for cell evaluation
+        def eval_func(points):
+            points = np.expand_dims(points, axis=0)
+            samples = torch.from_numpy(points).to(device=cuda).float()
+            net.query(samples, calib_tensor)
+            pred = net.get_preds()[0][0]
+            return pred.detach().cpu().numpy()
+
+        # Then we evaluate the grid
+        if use_octree:
+            sdf = eval_grid_octree(coords, eval_func, num_samples=num_samples)
+        else:
+            sdf = eval_grid(coords, eval_func, num_samples=num_samples)
+
+        # Finally we do marching cubes
+        try:
+            verts, faces, normals, values = measure.marching_cubes_lewiner(sdf, 0.5)
+            # transform verts into world coordinate system
+            verts = np.matmul(mat[:3, :3], verts.T) + mat[:3, 3:4]
+            verts = verts.T
+            return verts, faces, normals, values
+        except:
+            print('error cannot marching cubes')
+            return -1
+    def gen_mesh_real(opt, net, cuda, data, save_path, use_octree=True):
+        image_tensor = data['hairstep'].to(device=cuda).unsqueeze(0)
+        calib_tensor = data['calib'].to(device=cuda).unsqueeze(0)
+
+        net.filter(image_tensor)
+
+        b_min = np.array([-0.3, 1.0, -0.3])
+        b_max = np.array([0.3, 2.0, 0.3])
+        try:
+            verts, faces, _, _ = reconstruction(
+                net, cuda, calib_tensor, opt.resolution, b_min, b_max, use_octree=use_octree)
+            save_obj_mesh(save_path, verts, faces)
+        except Exception as e:
+            print(e)
+            print('Can not create marching cubes at this time.')        
     def inference(self,image,use_step,bust=None,depth=None,norm_depth=None, use_bust=True,name=""):
         self.model.eval()
         with torch.no_grad():

@@ -74,6 +74,7 @@ class filter_crop:
             depth_pred = self.depthPred(rgb_img)
             depth_pred = depth_pred.squeeze(0).permute(1, 2, 0).cpu().detach().numpy()
             depth_pred = cv2.resize(depth_pred,(256,256))
+            mask=cv2.resize(mask,(256,256))
             depth_pred_masked = depth_pred[:, :] * mask - (1 - mask) * (np.abs(np.nanmax(depth_pred)) + np.abs(np.nanmin(depth_pred)))
             max_val = np.nanmax(depth_pred_masked)
             min_val = np.nanmin(depth_pred_masked + 2 * (1 - mask) * (np.abs(np.nanmax(depth_pred)) + np.abs(np.nanmin(depth_pred))))

@@ -1,9 +1,10 @@
 from .base_options import BaseOptions
 from solver.GrowingNetSolver import GrowingNetSolver
 from solver.HairSpatNetSolver import HairSpatNetSolver
+from solver.HairModelingHDSolver import HairModelingHDSolver
 import argparse
 class InferenceOptions(BaseOptions):
-    def initialize(self):
+    def initialize(self,use_hd=False):
         parser = argparse.ArgumentParser(
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         BaseOptions.initialize(self, parser)
@@ -24,7 +25,10 @@ class InferenceOptions(BaseOptions):
         parser.add_argument('--translate_ori',type=int,default=3)
         parser.add_argument('--pred_label', action='store_true')
         parser=GrowingNetSolver.modify_options(parser)
-        parser=HairSpatNetSolver.modify_options(parser)
+        if not use_hd:
+            parser=HairSpatNetSolver.modify_options(parser)
+        else:
+            parser=HairModelingHDSolver.modify_options(parser)
         parser.add_argument('--isTrain',default=False, action='store_true')
         self.isTrain = False
         opt = parser.parse_args()
