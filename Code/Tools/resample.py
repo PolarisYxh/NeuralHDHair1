@@ -3,6 +3,7 @@ import scipy.interpolate as interpolate
 # from .file_io import get_data
 from tqdm import tqdm
 import os
+from .utils import timeCost
 # import numba as nb
 # from .file_io import *
 def resample_mean2(points,target_points=-1,target_step_size=0.0):
@@ -60,14 +61,23 @@ def resample_same_concurrent(strand,num):
         new_points.append(p)
     new_strand = np.array(new_points)
     return new_strand
+
+from .bSpline import *
+def resample_same_concurrent1(strand,num):
+    k=3
+    # NodeVector = U_piecewise_B_Spline((len(strand)//(k-1))*(k-1), k)
+    NodeVector = np.linspace(0, 1, len(strand)+k)[None]
+    path = bspline_interp(strand,k,NodeVector,num)
+    return np.array(path)
+@ timeCost
 def process_list(strands,segments,num=100):
     new_strands=[]
     nums = []
     start =0
     for i in range(0,len(segments)):
-        new_strands.append(strands[start:start+segments[i]])
+        new_strands.append(np.array(strands[start:start+segments[i]]))
         start=start+segments[i]
         nums.append(num)
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
         results = list(executor.map(resample_same_concurrent, new_strands,nums))
     return np.array(results)

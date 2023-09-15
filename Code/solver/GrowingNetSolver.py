@@ -7,7 +7,8 @@ import torch
 import time
 import numpy as np
 import torch.nn
-from Tools.resample import resample,process_list
+# from Tools.resample import resample,process_list
+from Tools import pyBsplineInterp #pyBsplineInterp.cpython-38-x86_64-linux-gnu generated from BSpline directory
 class GrowingNetSolver(BaseSolver):
 
     @staticmethod
@@ -482,29 +483,29 @@ class GrowingNetSolver(BaseSolver):
             ori,dilate_ori,occ2,dilate_occ=close_voxel1(occ1,torch.from_numpy(ori.copy()).permute((3,0,1,2)),k)
             # 方向场周围包一圈指向方向场的方向
             # Define 3D Sobel operator
-            sobel_x = torch.tensor([[[[1, 0, -1], [2, 0, -2], [1, 0, -1]],
-                                    [[2, 0, -2], [4, 0, -4], [2, 0, -2]],
-                                    [[1, 0, -1], [2, 0, -2], [1, 0, -1]]]]).unsqueeze(0).float()*(-1)#左右
+            # sobel_x = torch.tensor([[[[1, 0, -1], [2, 0, -2], [1, 0, -1]],
+            #                         [[2, 0, -2], [4, 0, -4], [2, 0, -2]],
+            #                         [[1, 0, -1], [2, 0, -2], [1, 0, -1]]]]).unsqueeze(0).float()*(-1)#左右
 
-            sobel_y = torch.tensor([[[[1, 2, 1], [0, 0, 0], [-1, -2, -1]],
-                                    [[2, 4, 2], [0, 0, 0], [-2, -4, -2]],
-                                    [[1, 2, 1], [0, 0, 0], [-1, -2, -1]]]]).unsqueeze(0).float()#上下
+            # sobel_y = torch.tensor([[[[1, 2, 1], [0, 0, 0], [-1, -2, -1]],
+            #                         [[2, 4, 2], [0, 0, 0], [-2, -4, -2]],
+            #                         [[1, 2, 1], [0, 0, 0], [-1, -2, -1]]]]).unsqueeze(0).float()#上下
 
-            sobel_z = torch.tensor([[[[1, 2, 1], [2, 4, 2], [1, 2, 1]],
-                                    [[0, 0, 0], [0, 0, 0], [0, 0 ,0]],
-                                    [[-1,-2,-1],[-2,-4,-2],[-1,-2,-1]]]]).unsqueeze(0).float()#前后
+            # sobel_z = torch.tensor([[[[1, 2, 1], [2, 4, 2], [1, 2, 1]],
+            #                         [[0, 0, 0], [0, 0, 0], [0, 0 ,0]],
+            #                         [[-1,-2,-1],[-2,-4,-2],[-1,-2,-1]]]]).unsqueeze(0).float()#前后
 
-            occ3=occ2.unsqueeze(0)
-            # Apply Sobel operator
-            G_x = F.conv3d(occ3, sobel_x, stride=1,padding='same').squeeze(0)
-            G_y = F.conv3d(occ3, sobel_y, stride=1,padding='same').squeeze(0)
-            G_z = F.conv3d(occ3, sobel_z, stride=1,padding='same').squeeze(0)
+            # occ3=occ2.unsqueeze(0)
+            # # Apply Sobel operator
+            # G_x = F.conv3d(occ3, sobel_x, stride=1,padding='same').squeeze(0)
+            # G_y = F.conv3d(occ3, sobel_y, stride=1,padding='same').squeeze(0)
+            # G_z = F.conv3d(occ3, sobel_z, stride=1,padding='same').squeeze(0)
 
-            # Calculate magnitude
-            G = torch.sqrt(G_x**2 + G_y**2 + G_z**2)
-            ori_edge = torch.concat((G_x,G_y,G_z),0)/G
-            ori_edge = torch.where(torch.isnan(ori_edge), 0,ori_edge)
-            ori_edge = torch.where(occ2>0,ori, ori_edge)
+            # # Calculate magnitude
+            # G = torch.sqrt(G_x**2 + G_y**2 + G_z**2)
+            # ori_edge = torch.concat((G_x,G_y,G_z),0)/G
+            # ori_edge = torch.where(torch.isnan(ori_edge), 0,ori_edge)
+            # ori_edge = torch.where(occ2>0,ori, ori_edge)
             
             # ori_edge1=F.avg_pool3d(ori_edge,kernel_size=3, stride=1, padding=1)
             # mask = torch.norm(ori_edge, dim=0)
@@ -517,7 +518,7 @@ class GrowingNetSolver(BaseSolver):
             # draw_circles_by_projection(occ1,iter=3)
             occ = occ1.cpu().numpy().transpose(1,2,3,0)
             # 使用膨胀后的方向场进行生长，防止断发
-            ori1 = ori_edge
+            ori1 = dilate_ori
             ori1=ori1.cpu().numpy().transpose(1, 2, 3, 0)
             if transfer:
                 gt_orientation= ori1*np.array([1,-1,-1])  # scaled
@@ -529,14 +530,16 @@ class GrowingNetSolver(BaseSolver):
             else:
                 datas=self.generate_random_root_from_roots()
                 # datas=self.generate_test_data(self.opt.growInv)
-            final_strand_del_by_ori,final_segment = self.get_pred_strands(datas,ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),\
-                                                                          use_rule=True)#ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),
+            final_strand_del_by_ori,final_segment = self.get_pred_strands(datas,ori_orient=None,\
+                                                                          use_rule=False)#ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),
             # 采样点
             if sample_num!=-1:
-                final_strand_del_by_ori = process_list(final_strand_del_by_ori,final_segment,sample_num)
+                final_strand_del_by_ori=pyBsplineInterp.GetBsplineInterp(final_strand_del_by_ori,final_segment,sample_num,3)
+                final_strand_del_by_ori=final_strand_del_by_ori.reshape((-1,sample_num,3))
+                # final_strand_del_by_ori = process_list(final_strand_del_by_ori,final_segment,sample_num)#final_strand_del_by_ori:in:585046*3 list; out:(11995, 100, 3)
                 final_segment = (np.ones(len(final_strand_del_by_ori))*sample_num).astype("int")
                 #删除大部分在膨胀区域的发丝
-                # final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
+                final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
                 final_strand_del_by_ori = final_strand_del_by_ori.reshape(-1,3)
             # x=np.array(final_strand_del_by_ori)[:,:].astype('int')
             # draw_circles_by_projection1(x)

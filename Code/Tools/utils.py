@@ -15,7 +15,20 @@ import json
 import matplotlib.pyplot as plt
 stepInv = 1. / 0.01015625
 gridOrg = np.array([-0.65, -0.65, -0.4875], dtype=np.float32)
+def timeCost(func):
+    import logging
+    import time
 
+    def wrapper(*args, **kw):
+        start = time.time()
+        result = func(*args, **kw)
+        end = time.time()
+        response_time = end - start
+        print(f"{func.__qualname__} response_time = {round(response_time, 3)}")
+        logging.info(f"{func.__qualname__} response_time = {round(response_time, 3)}")
+        return result
+
+    return wrapper
 
 def get_depth(d,image_size):
     path=os.path.join(d,'hair_depth1.png')
@@ -583,14 +596,8 @@ def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False,is_hd=False):
     gt_occ1=mask1.T-np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
     new_gt_occ = trans.matrix_transform(gt_occ1, tform.params)+np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
     new_gt_occ = new_gt_occ.T.astype('int')
-    index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= s[2]-1)
+    index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= s[2]-1)&(new_gt_occ[0] >= 0) & (new_gt_occ[0] <= s[0]-1)&(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= s[1]-1)
     new_gt_occ = new_gt_occ[:,index]
-    mask1 = mask1[:,index]
-    index = (new_gt_occ[0] >= 0) & (new_gt_occ[0] <= s[1]-1)
-    new_gt_occ = new_gt_occ[:,index]
-    mask1 = mask1[:,index]
-    index = (new_gt_occ[1] >= 0) & (new_gt_occ[1] <= s[0]-1)
-    new_gt_occ = new_gt_occ[:,(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= s[0]-1)]
     mask1 = mask1[:,index]
     
     ori1 = ori[tuple(mask1)]
@@ -871,10 +878,10 @@ def save_ori_as_mat(ori,opt,save=True,suffix=''):
         if opt.save_dir is not None and opt.test_file is not None:
             path = os.path.join(opt.save_dir, opt.test_file)
         else:
-            path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'record', opt.test_file)
+            path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'record')#, opt.test_file
         if not os.path.exists(path):
             mkdirs(path)
-        scipy.io.savemat(os.path.join(path,'Ori3D{}_pred.mat'.format(suffix)), {'Ori': ori})
+        scipy.io.savemat(os.path.join(path,opt.test_file+'_Ori3D{}_pred.mat'.format(suffix)), {'Ori': ori})
     return ori
 # def write_strand(points,opt,segments,type='ori'):
 #     print('delete by {} ....'.format(type))
@@ -1346,7 +1353,9 @@ def delete_strand_out_ori(mask,strands,segments):
     strands = np.delete(strands, s_index, axis=0)
     segments = np.delete(segments, s_index, axis=0)
     return strands,segments
-
+# import numba
+# @timeCost
+# @numba.jit#更慢
 def delete_point_out_ori(mask,strands):
     all_points=[]
     strands=strands[0]

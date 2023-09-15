@@ -81,14 +81,14 @@ class Local_Filter(BaseNetwork):
 
 
 
-    def forward(self, image,strand2D,gt_occ,gt_ori,net_global,resolution=[96*4,128*4,128*4]):
+    def forward(self, image,strand2D,gt_occ,gt_ori,net_global,resolution=[96*4,128*4,128*4],depth_map=None):
         self.loss_global={}
         self.loss_local={}
         D,H,W=resolution
         self.out_ori = torch.zeros(1, 3, D, H, W).cuda()
         self.out_occ = torch.zeros(1, 1, D, H, W).cuda()
         with torch.no_grad():
-            out_ori_low,out_occ_low,self.loss_global['loss_ori_low'],self.loss_global['loss_occ_low']=net_global(image,gt_occ,gt_ori,mode='generator')
+            out_ori_low,out_occ_low,self.loss_global['loss_ori_low'],self.loss_global['loss_occ_low']=net_global(image,gt_occ,gt_ori,mode='generator',depth_map=depth_map)
         points=net_global.points
         feat_ori,feat_occ=net_global.get_phi()
         self.gt_ori=net_global.gt_ori

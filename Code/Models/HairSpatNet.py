@@ -175,10 +175,10 @@ class HairSpatNet(BaseNetwork):
         depth = self.index(depth_map, xy)
         self.depth_feat=depth
 
-    def compute_weight(self,depth_map,points):
+    def compute_weight(self,depth_map,points,D):
         xy = points[:, :, [1, 0]]
         xy = (xy - 0.5) * 2
-        z=points[:,:,2:3]*95.
+        z=points[:,:,2:3]*(D-1)
         z=z.permute(0,2,1)
         depth=self.index(depth_map, xy)
         self.loss_weight=0.4+(depth-z+10.)/20.#z越大，loss_weight越小
@@ -198,7 +198,7 @@ class HairSpatNet(BaseNetwork):
                 self.sample_train_point(gt_occ, gt_ori, sample_negative=False)
             if depth_map is not None:
 
-                self.compute_weight(depth_map,self.points)
+                self.compute_weight(depth_map,self.points,D)
             if not no_use_depth:
                 self.get_depth_feat1(norm_depth,self.points)
                 depth=self.depth_feat

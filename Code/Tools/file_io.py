@@ -368,19 +368,19 @@ def write_data(file_name,points,segments,colors=None):
             # f.write(struct.pack('f' * v_num * 3,points[num:num+v_num,:].reshape((-1)).tolist()))
             num=num+v_num
 
-try:
-    from curvesAbc import CurvesAbc
-except:
-    from .curvesAbc import CurvesAbc
-def write_strand2abc(output_path, curves):
-    # create empty archive and put some objects in it
-    c=CurvesAbc()
-    c.CurvesExport(curves,output_path)
+# try:
+#     from curvesAbc import CurvesAbc
+# except:
+#     from .curvesAbc import CurvesAbc
+# def write_strand2abc(output_path, curves):
+#     # create empty archive and put some objects in it
+#     c=CurvesAbc()
+#     c.CurvesExport(curves,output_path)
     
-def write_strand2abc1(output_path, segments, curves):
-    # create empty archive and put some objects in it
-    c=CurvesAbc()
-    c.CurvesExport1(segments,curves,output_path)
+# def write_strand2abc1(output_path, segments, curves):
+#     # create empty archive and put some objects in it
+#     c=CurvesAbc()
+#     c.CurvesExport1(segments,curves,output_path)
 # def read_abc(input_path):
 #     c=CurvesAbc()
 #     segments,points = c.testCurvesImport(input_path)

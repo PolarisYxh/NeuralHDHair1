@@ -1,0 +1,8 @@
+{
+    "//":"相对文件所在文件夹的路径",
+    "cache_path":"cache/",
+    "url0":"http://0.0.0.0:40082",
+    "url":"http://10.10.52.151:50086",
+    "url0":"http://speech.ths8.com:6080/vc_p2c",
+    "url0":"https://alg.aicubes.cn/vc-p2c"
+}

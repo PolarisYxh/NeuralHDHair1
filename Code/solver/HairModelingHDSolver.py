@@ -52,16 +52,18 @@ class HairModelingHDSolver(BaseSolver):
         if opt.continue_train or opt.isTrain is False:
             path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
             if os.path.exists(path):
-                # self.net_global = self.load_network(self.net_global, 'HairModelingGlobal', opt.which_iter, opt)
+                self.net_global = self.load_network(self.net_global, 'HairModelingGlobal', opt.which_iter, opt)
                 self.net_local = self.load_network(self.net_local, 'HairModelingLocal', opt.which_iter, opt)
         else:
             print(" Training from Scratch! ")
             self.net_local.init_weights(opt.init_type, opt.init_variance)
 
         if len(opt.gpu_ids) > 0:
+            import torch.nn as nn
             assert (torch.cuda.is_available())
-
+            # self.net_global=nn.DataParallel(self.net_global, device_ids=opt.gpu_ids)
             self.net_global=self.net_global.cuda()
+            # self.net_local=nn.DataParallel(self.net_local, device_ids=opt.gpu_ids)
             self.net_local=self.net_local.cuda()
 
 
@@ -83,13 +85,15 @@ class HairModelingHDSolver(BaseSolver):
         gt_occ=datas['gt_occ']
         Ori2D = datas['Ori2D'].type(torch.float)
         add_info=datas['add_info'].type(torch.float)
+        depth = datas['depth'].type(torch.float)
         if self.use_gpu():
             image = image.cuda()
             gt_orientation = gt_orientation.cuda()
             gt_occ=gt_occ.cuda()
             Ori2D = Ori2D.cuda()
             add_info=add_info.cuda()
-        return image,gt_orientation,gt_occ,Ori2D,add_info
+            depth=depth.cuda()
+        return image,gt_orientation,gt_occ,Ori2D,add_info,depth
 
 
 
@@ -106,7 +110,7 @@ class HairModelingHDSolver(BaseSolver):
                 self.init_losses()
                 iter_counter.record_one_iteration()
 
-                image,gt_orientation,gt_occ,Ori2D,add_info= self.preprocess_input(datas)#ori.png(orientation map),(size,3,96,128,128),(size,1,96,128,128),
+                image,gt_orientation,gt_occ,Ori2D,add_info,depth= self.preprocess_input(datas)#ori.png(orientation map),(size,3,96,128,128),(size,1,96,128,128),
                 # save_image(add_info,'test.png')
                 # unsample = torch.nn.Upsample(scale_factor=self.opt.resolution[0]//96, mode='trilinear')
                 # gt_occ_low=gt_occ.clone()
@@ -114,7 +118,7 @@ class HairModelingHDSolver(BaseSolver):
                 # gt_occ=unsample(gt_occ)
 
 
-                out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, resolution=self.opt.resolution)
+                out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, depth_map=depth,resolution=self.opt.resolution)
 
                 # self.loss_backward(self.loss_global,self.optimizer_global)
                 # self.loss_backward(self.loss_global,self.optimizer_local)
@@ -141,8 +145,8 @@ class HairModelingHDSolver(BaseSolver):
                           (epoch, iter_counter.total_steps_so_far))
                     self.save_network(self.net_local, 'HairModelingLocal', iter_counter.total_steps_so_far, self.opt)
                     self.save_network(self.net_local, 'HairModelingLocal', 'latest', self.opt)
-                    # self.save_network(self.net_global, 'HairModelingGlobal', iter_counter.total_steps_so_far, self.opt)
-                    # self.save_network(self.net_global, 'HairModelingGlobal', 'latest', self.opt)
+                    self.save_network(self.net_global, 'HairModelingGlobal', iter_counter.total_steps_so_far, self.opt)
+                    self.save_network(self.net_global, 'HairModelingGlobal', 'latest', self.opt)
 
                     iter_counter.record_current_iter()
             self.update_learning_rate(epoch)
@@ -197,7 +201,7 @@ class HairModelingHDSolver(BaseSolver):
                 norm_depth = norm_depth.cuda()
     
             #image,strand2D,Ori2D,net_global,resolution,step=100000
-            out_ori, out_occ = self.net_local.test(image,norm_depth,Ori2D,self.net_global,self.opt.resolution)
+            out_ori, out_occ,_,_ = self.net_local.test(image,norm_depth,Ori2D,self.net_global,self.opt.resolution)
                 
             out_occ[out_occ>=0.2]=1
             out_occ[out_occ<0.2]=0
@@ -205,7 +209,7 @@ class HairModelingHDSolver(BaseSolver):
             pred_ori=pred_ori.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
             pred_ori=pred_ori.cpu().numpy()
             path=os.path.join(self.opt.current_path, self.opt.save_root, self.opt.check_name, 'record', self.opt.test_file)
-            np.save(os.path.join(path,'Ori3D{}_pred.mat'.format("_"+str(self.opt.which_iter)+'_1')))
+            pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
             # pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
             # 以下为save_ori_as_mat所做的操作
             # pred_ori=pred_ori * np.array([1, -1, -1])

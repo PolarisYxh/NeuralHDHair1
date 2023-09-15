@@ -4,7 +4,7 @@ try:
     from http_interface import *
 except:
     from .http_interface import *
-import pyfilter#have to install apt-get install libopencv-dev==4.2.0 and run in python 3.8.*
+
 import math
 from skimage import transform as trans
 import trimesh
@@ -122,6 +122,7 @@ class filter_crop:
             avg_color=np.append(avg_color,255)
             return x,mask,avg_color,crop_image2
             # strand_pred = np.concatenate([mask+body*0.5, strand_pred*mask], axis=-1)
+        import pyfilter#have to install apt-get install libopencv-dev==4.2.0 and run in python 3.8.*
         avg_color,image1=self.get_hair_avgcolor(img1,crop_image)
         mask = cv2.resize(mask,(512,512))
         crop_image= cv2.resize(crop_image,(512,512))
