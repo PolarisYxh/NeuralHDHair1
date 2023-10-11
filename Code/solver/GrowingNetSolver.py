@@ -7,6 +7,7 @@ import torch
 import time
 import numpy as np
 import torch.nn
+from torch.cuda.amp import autocast, GradScaler
 # from Tools.resample import resample,process_list
 from Tools import pyBsplineInterp #pyBsplineInterp.cpython-38-x86_64-linux-gnu generated from BSpline directory
 class GrowingNetSolver(BaseSolver):
@@ -93,6 +94,8 @@ class GrowingNetSolver(BaseSolver):
         self.GrowingNet.print_network()
         if len(opt.gpu_ids)>0:
             assert (torch.cuda.is_available())
+            # torch.cuda.set_device(opt.gpu_ids[-1])
+            print(torch.cuda.current_device())
             # self.GrowingNet.cuda()
             # self.model=torch.nn.DataParallel(self.GrowingNet,self.opt.gpu_ids)
             self.model=self.GrowingNet.cuda()
@@ -232,11 +235,12 @@ class GrowingNetSolver(BaseSolver):
     def get_pred_strands(self,datas,ori_orient=None,use_rule=False):
         strands, gt_orientation,labels = self.preprocess_input(datas)
         if use_rule:
+            pt_num = self.pt_num
             num_strand = strands.shape[2]
-            hair_strands = torch.zeros(100, 3, num_strand).cuda()
+            hair_strands = torch.zeros(pt_num, 3, num_strand).cuda()
             curr_node = strands.squeeze()
             hair_strands[0] = curr_node#gt_orientation按照前后，上下，左右顺序;hair_strands,strands相反按照左右，上下，前后;curr_node_orien按照左右，上下，前后
-            for i in range(1,99):
+            for i in range(1,pt_num):
                 index = curr_node.to(torch.long)
                 index[0:2]=torch.clip(index[0:2],0,gt_orientation.shape[3]-1)
                 index[2:]=torch.clip(index[2:],0,gt_orientation.shape[2]-1)
@@ -249,10 +253,10 @@ class GrowingNetSolver(BaseSolver):
             hair_strands[:,2,:] = torch.clip(hair_strands[:,2,:],0,gt_orientation.shape[2]-1)
             out_points_2 = hair_strands.permute(1,2,0).unsqueeze(0)
             
-            hair_strands_inv = torch.zeros(100, 3, num_strand).cuda()
+            hair_strands_inv = torch.zeros(pt_num, 3, num_strand).cuda()
             curr_node = strands.squeeze()
             hair_strands_inv[0] = curr_node
-            for i in range(1,99):
+            for i in range(1,pt_num):
                 index = curr_node.to(torch.long)
                 index[0:2]=torch.clip(index[0:2],0,gt_orientation.shape[3]-1)
                 index[2:]=torch.clip(index[2:],0,gt_orientation.shape[2]-1)
@@ -263,7 +267,7 @@ class GrowingNetSolver(BaseSolver):
             hair_strands_inv[:,:2,:] = torch.clip(hair_strands_inv[:,:2,:],0,gt_orientation.shape[3]-1)
             hair_strands_inv[:,2,:] = torch.clip(hair_strands_inv[:,2,:],0,gt_orientation.shape[2]-1)
             out_points_2_Inv = hair_strands_inv.permute(1,2,0).unsqueeze(0)
-            pt_num = 100
+            # pt_num = 100
         else:
             with torch.no_grad():
                 if self.opt.Bidirectional_growth:
@@ -277,7 +281,10 @@ class GrowingNetSolver(BaseSolver):
                     # print('encoder cost:',time.time()-start)
                     # gt_orientation = close_voxel(gt_orientation, 5)
                     gt_orientation=gt_orientation.expand(len(self.opt.gpu_ids),*gt_orientation.size()[1:])
-                    out_points_2, labels_2, out_points_2_Inv, labels_2_Inv=self.model(strands,gt_orientation,pt_num,'rnn')
+                    with autocast(dtype=torch.float16):
+                        gt_orientation=gt_orientation.to(torch.float16)
+                        strands=strands.to(torch.float16)
+                        out_points_2, labels_2, out_points_2_Inv, labels_2_Inv=self.model(strands,gt_orientation,pt_num,'rnn')
                     # torch.cuda.synchronize()
                     print('grow cost:', time.time() - start)
 
@@ -380,7 +387,7 @@ class GrowingNetSolver(BaseSolver):
         left = np.min(samle_voxel_index[:,2], axis=0)#左右
         right = np.max(samle_voxel_index[:,2], axis=0)
         mid = (low1+high1)//2
-        self.pt_num = int((high1-low1)*3)
+        self.pt_num = int((high1-low1)*1.5)
         low = np.min(self.roots[:,1],axis=0)
         high = np.max(self.roots[:,1],axis=0)
         samle_voxel_index2 = samle_voxel_index[np.where(samle_voxel_index[:,1]<=high)][...,:3]#对头皮毛孔以上的体素进行采样
@@ -480,6 +487,8 @@ class GrowingNetSolver(BaseSolver):
             occ1 = torch.from_numpy(occ).permute((3,0,1,2))
             k=3
             p=int(k/2)
+            # occ1 = 1-F.max_pool3d(1-occ1, kernel_size=k, stride=1, padding=p)#腐蚀
+            # occ1 = F.max_pool3d(occ1, kernel_size=k, stride=1, padding=p)#膨胀
             ori,dilate_ori,occ2,dilate_occ=close_voxel1(occ1,torch.from_numpy(ori.copy()).permute((3,0,1,2)),k)
             # 方向场周围包一圈指向方向场的方向
             # Define 3D Sobel operator
@@ -532,6 +541,17 @@ class GrowingNetSolver(BaseSolver):
                 # datas=self.generate_test_data(self.opt.growInv)
             final_strand_del_by_ori,final_segment = self.get_pred_strands(datas,ori_orient=None,\
                                                                           use_rule=False)#ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),
+            short_thres = np.mean(final_segment)*0.3
+            index=np.where(final_segment<short_thres)[0]
+            start=0
+            index1 = []
+            for i in range(len(final_segment)):
+                if i in index:
+                    t = list(range(start,start+final_segment[i]))
+                    index1+=t
+                start+=final_segment[i]
+            final_strand_del_by_ori = np.delete(final_strand_del_by_ori, index1, axis=0)
+            final_segment = np.delete(final_segment, index, axis=0)
             # 采样点
             if sample_num!=-1:
                 final_strand_del_by_ori=pyBsplineInterp.GetBsplineInterp(final_strand_del_by_ori,final_segment,sample_num,3)

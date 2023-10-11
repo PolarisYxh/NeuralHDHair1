@@ -49,26 +49,73 @@ def trans_hair(points,segments,color,num=100):
     ret = requests.post(ip_port,data=json.dumps(js))
     if "完毕" not in ret.text:
         print(ret.text)
-def set_camera(ang_y):
-    js={
+def set_camera(ang_y=0,flag=0):
+    """_summary_
+
+    Args:
+        ang_y (_type_): _description_
+        flag (int, optional): 0,正面；1,左边；2,右边. Defaults to 0.
+    """  
+    if flag==1:  
+        js={
+            "type": "transform",
+            "name": "camera",
+                "position": {
+                        "x": 2,
+                        "y": 16.5,
+                        "z": 3
+                    },
+            "rotation": {
+                        "x": 0,
+                        "y": 30,
+                        "z": 0
+                    },
+                "scale": {
+                        "x": 1,
+                        "y": 1,
+                        "z": 1
+                    }
+            }
+    elif flag==2:
+        js={
+            "type": "transform",
+            "name": "camera",
+                "position": {
+                        "x": -2,
+                        "y": 16.5,
+                        "z": 3
+                    },
+            "rotation": {
+                        "x": 0,
+                        "y": -30,
+                        "z": 0
+                    },
+                "scale": {
+                        "x": 1,
+                        "y": 1,
+                        "z": 1
+                    }
+            }
+    elif flag==0:
+        js={
         "type": "transform",
         "name": "camera",
-        "position": {
-            "x": 0.0,#向右-0.3
-            "y": 0.0,#向下
-            "z": 0.0#屏幕向外方向-1.0
-        },
+            "position": {
+                    "x": 0,
+                    "y": 16.5,
+                    "z": 3
+                },
         "rotation": {
-            "x": 0,
-            "y": ang_y,
-            "z": 0.0
-        },
-        "scale": {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 1.0
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                },
+            "scale": {
+                    "x": 1,
+                    "y": 1,
+                    "z": 1
+                }
         }
-    }    
     ret = requests.post(ip_port,data=json.dumps(js))
     if "完毕" not in ret.text:
         print(ret.text)

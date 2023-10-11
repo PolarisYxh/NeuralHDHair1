@@ -4,6 +4,7 @@ from Models.base_block import Conv_MLP
 from Models.normalization import pixel_norm
 from Loss.loss import l1_loss
 import torch
+from torch.cuda.amp import autocast, GradScaler
 class Local_Filter(BaseNetwork):
 
     @staticmethod
@@ -81,29 +82,48 @@ class Local_Filter(BaseNetwork):
 
 
 
-    def forward(self, image,strand2D,gt_occ,gt_ori,net_global,resolution=[96*4,128*4,128*4],depth_map=None):
+    def forward(self, image,strand2D,gt_occ,gt_ori,net_global,resolution=[96*4,128*4,128*4],depth_map=None,train_global=True):
         self.loss_global={}
         self.loss_local={}
         D,H,W=resolution
         self.out_ori = torch.zeros(1, 3, D, H, W).cuda()
         self.out_occ = torch.zeros(1, 1, D, H, W).cuda()
-        with torch.no_grad():
+        if not train_global:
+            with torch.no_grad():
+                out_ori_low,out_occ_low,self.loss_global['loss_ori_low'],self.loss_global['loss_occ_low']=net_global(image,gt_occ,gt_ori,mode='generator',depth_map=depth_map)
+            points=net_global.points
+            feat_ori,feat_occ=net_global.get_phi()
+            self.gt_ori=net_global.gt_ori
+            self.gt_occ=net_global.gt_occ
+            self.loss_weight=net_global.loss_weight
+
+
+            # print(strand2D.size())
+            self.im_feat_list,_ = self.image_filter(strand2D)
+            self.query(points,feat_ori.detach(),feat_occ.detach())
+
+            ori,occ=self.get_pred()
+
+            self.loss_local['loss_ori_hd'] = l1_loss((self.gt_ori - ori * self.gt_occ)*self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
+            self.loss_local['loss_occ_hd'] = l1_loss((self.gt_occ - occ) * self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
+        else:
             out_ori_low,out_occ_low,self.loss_global['loss_ori_low'],self.loss_global['loss_occ_low']=net_global(image,gt_occ,gt_ori,mode='generator',depth_map=depth_map)
-        points=net_global.points
-        feat_ori,feat_occ=net_global.get_phi()
-        self.gt_ori=net_global.gt_ori
-        self.gt_occ=net_global.gt_occ
-        self.loss_weight=net_global.loss_weight
+            points=net_global.points
+            feat_ori,feat_occ=net_global.get_phi()
+            self.gt_ori=net_global.gt_ori
+            self.gt_occ=net_global.gt_occ
+            self.loss_weight=net_global.loss_weight
 
 
-        # print(strand2D.size())
-        self.im_feat_list,_ = self.image_filter(strand2D)
-        self.query(points,feat_ori.detach(),feat_occ.detach())
+            # print(strand2D.size())
+            with autocast(dtype=torch.float16):
+                self.im_feat_list,_ = self.image_filter(strand2D)
+                self.query(points,feat_ori.detach(),feat_occ.detach())
 
-        ori,occ=self.get_pred()
+                ori,occ=self.get_pred()
 
-        self.loss_local['loss_ori_hd'] = l1_loss((self.gt_ori - ori * self.gt_occ)*self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
-        self.loss_local['loss_occ_hd'] = l1_loss((self.gt_occ - occ) * self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
+                self.loss_local['loss_ori_hd'] = l1_loss((self.gt_ori - ori * self.gt_occ)*self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
+                self.loss_local['loss_occ_hd'] = l1_loss((self.gt_occ - occ) * self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
 
         self.point_convert_to_voxel(points, ori, mode='ori')
         self.point_convert_to_voxel(points, occ, mode='occ')
@@ -121,7 +141,9 @@ class Local_Filter(BaseNetwork):
 
 
         points=net_global.test_points
-
+        # with autocast(dtype=torch.float16):
+        #     points = points.to(torch.float16)
+        #     strand2D = strand2D.to(torch.float16)
         self.im_feat_list,_=self.image_filter(strand2D)
         n=points.size(1)//step+1
         for i in range(n):
@@ -149,6 +171,6 @@ class Local_Filter(BaseNetwork):
         if mode == 'ori':
             self.out_ori[:, :, z, x, y] = res
         elif mode == 'occ':
-            self.out_occ[:, :, z, x, y] = res
+            self.out_occ[:, :, z, x, y] = res.to(torch.float32)
     def get_pred(self):
         return self.pred_ori,self.pred_occ

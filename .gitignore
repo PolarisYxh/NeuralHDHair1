@@ -5,3 +5,5 @@
 /data/cache
 /data/test
 *.log*
+/*.cin
+/*.data

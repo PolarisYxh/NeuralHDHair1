@@ -16,8 +16,9 @@ from skimage import transform as trans
 from dataload.render_strand import render_strand
 import trimesh
 from Tools.utils import timeCost
+from util import cvmat2base64
 class strand_inference:
-    def __init__(self,rFolder,use_hd=False,use_step=True,use_depth=False,use_strand=False,Bidirectional_growth=False,gpu_ids=[]) -> None:
+    def __init__(self,rFolder,HairFilterLocal=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[]) -> None:
         """_summary_
 
         Args:
@@ -29,13 +30,15 @@ class strand_inference:
         """   
         self.use_strand = use_strand
         if use_hd:
-            use_depth=True     
-        self.img_filter = filter_crop(os.path.dirname(__file__),\
-                                      os.path.join(os.path.dirname(__file__),"../data/test"),\
-                                      use_step=use_step,use_depth=use_depth,use_strand=use_strand)
-        # image = cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/test/image.jpg")
-        # image = cv2.resize(image,(640,640))
-        # ori2D,mask = self.img_filter.pyfilter2neuralhd(image)
+            use_depth=True   
+        self.HairFilterLocal = HairFilterLocal 
+        if  self.HairFilterLocal:
+            self.img_filter = filter_crop(os.path.dirname(__file__),\
+                                        os.path.join(os.path.dirname(__file__),"../data/test"),\
+                                        use_step=use_step,use_depth=use_depth,use_strand=use_strand)
+        else:
+            from http_interface import HairFilterInterface
+            self.img_filter = HairFilterInterface(os.path.dirname(__file__))
         self.use_step=use_step
         self.opt=InferenceOptions().initialize(use_hd=use_hd)
         self.iter = {}
@@ -54,9 +57,9 @@ class strand_inference:
             self.opt.voxel_size = "192,256,256"
             self.opt.model_name="GrowingNet"
             self.opt.save_root="checkpoints/GrowingNet"
-            self.opt.which_iter=42240
+            self.opt.which_iter=1200000
             self.iter[self.opt.model_name] = self.opt.which_iter
-            self.opt.check_name="2023-09-04_bust_prev3_hg"
+            self.opt.check_name="2023-05-11_bust_prev3"
             self.opt.condition=True
             self.opt.num_root = 12000
             self.opt.Bidirectional_growth = Bidirectional_growth
@@ -64,13 +67,25 @@ class strand_inference:
             self.growing_solver = GrowingNetSolver()
             self.growing_solver.initialize(self.opt)
             
+            # self.opt.model_name="GrowingNet"
+            # self.opt.save_root="checkpoints/GrowingNet"
+            # self.opt.which_iter=42240
+            # self.iter[self.opt.model_name] = self.opt.which_iter
+            # self.opt.check_name="2023-09-04_bust_prev3_hg"
+            # self.opt.condition=True
+            # self.opt.num_root = 12000
+            # self.opt.Bidirectional_growth = Bidirectional_growth
+            # self.opt.growInv=False
+            # self.growing_solver = GrowingNetSolver()
+            # self.growing_solver.initialize(self.opt)
+            
             self.opt.model_name=="HairModelingHD"
             self.opt.save_root="checkpoints/HairModelingHD"
             self.opt.blur_ori = False
             self.opt.no_use_depth = True
             self.opt.no_use_pretrain = True
             # self.opt.pretrain_path="2023-07-31_rot_depth1/checkpoint/HairModelingGlobal_25456.pth"
-            self.opt.which_iter=30272
+            self.opt.which_iter=197456
             self.opt.check_name="2023-07-31_rot_depth1"
             self.ModelingHD_solver = HairModelingHDSolver()
             self.ModelingHD_solver.initialize(self.opt)
@@ -92,21 +107,21 @@ class strand_inference:
             # self.opt.which_iter=1640000#2023-04-17_bust,1640000 utils 1539 line color5.png，使用color5训练的;input_nc =2
             # self.opt.which_iter=885000#2023-06-06_bust_rot, utils 1539 line body_0.png，使用body_0训练的;input_nc =2
             
-            if use_depth:
-                self.opt.input_nc = 3
-                self.opt.check_name="2023-07-31_rot_depth1"
-                self.opt.which_iter=81840#2023-07-31_rot_depth1,use norm depth;input_nc =3
-            else:
-                self.opt.input_nc = 2
-                self.opt.which_iter=51000#2023-07-31_bust_rot, random rot, no depth 39000;input_nc =2
-                self.opt.check_name="2023-07-31_bust_rot"
+            # if use_depth:
+            #     self.opt.input_nc = 3
+            #     self.opt.check_name="2023-07-31_rot_depth1"
+            #     self.opt.which_iter=81840#2023-07-31_rot_depth1,use norm depth;input_nc =3
+            # else:
+            self.opt.input_nc = 2
+            self.opt.which_iter=51000 #2023-07-31_bust_rot, random rot, no depth 39000;input_nc =2   197456
+            self.opt.check_name="2023-07-31_bust_rot"
+            
             self.opt.no_use_L = True
             self.opt.no_use_depth=True
             self.opt.blur_ori = False
             self.iter[self.opt.model_name] = self.opt.which_iter
             # self.opt.check_name="2023-04-17_bust"
             # self.opt.check_name="2023-06-06_bust_rot"
-            
             self.spat_solver = HairSpatNetSolver()
             self.spat_solver.initialize(self.opt)
         self.sample_num=100
@@ -120,10 +135,21 @@ class strand_inference:
         if use_unity:
             reset()
         # set_camera()
-        ori2D,bust,color,rgb_image = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
+        if  self.HairFilterLocal:
+            ori2D,bust,color,rgb_image,revert_rot = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
+        else:
+            imgB64 = cvmat2base64(image)
+            ori2D,bust,color,rgb_image,revert_rot = self.img_filter.request_HairFilter(name,'img',imgB64)
         # kernel = np.ones((3,3),np.uint8)
         # ori2D = cv2.erode(ori2D,kernel,iterations=1)
-        cv2.imwrite("ori.png",ori2D)
+        if self.use_step:
+            cv2.imwrite(f"data/test/{self.opt.test_file}_ori.png",(ori2D*255).astype('uint8'))
+            cv2.imwrite(f"data/test/{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            cv2.imwrite(f"data/test/{self.opt.test_file}_rgb.png",rgb_image)
+        else:
+            cv2.imwrite(f"data/test/{self.opt.test_file}_ori.png",ori2D)
+            cv2.imwrite(f"data/test/{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            cv2.imwrite(f"data/test/{self.opt.test_file}_rgb.png",rgb_image)
         # cv2.imshow('1',ori2D)
         # cv2.imshow('2',bust)
         # cv2.imshow('3',rgb_image)
@@ -144,13 +170,18 @@ class strand_inference:
                 mask[np.where(np.sum(mask1,axis=2)>0)]=1
                 # cv2.imshow("4",mask)
                 # cv2.waitKey()
-            depth_norm=self.img_filter.get_depth(rgb_image,mask)
+            if  self.HairFilterLocal:
+                depth_norm=self.img_filter.get_depth(rgb_image,mask)
+            else:
+                rgbB64 = cvmat2base64(rgb_image)
+                maskB64 = cvmat2base64(mask)
+                depth_norm = self.img_filter.request_depth(name,'depth',rgbB64,maskB64)#dtype('float64')
         if not self.use_hd:
             if self.opt.input_nc==3:
-                orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=None,norm_depth=depth_norm,use_bust=False,name=name)
+                orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=None,norm_depth=depth_norm,use_bust=False,name=self.opt.test_file)
             # ori2D = image
             else:
-                orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=name)#(128, 128, 288)
+                orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=self.opt.test_file)#(128, 128, 288)
         else:
             orientation = self.ModelingHD_solver.inference(ori2D,use_step=self.use_step,bust=bust,norm_depth=depth_norm,name=name)
         if not isinstance(orientation,np.ndarray) and orientation==None:
@@ -163,7 +194,7 @@ class strand_inference:
         # color = np.array([255,0,0,255])
         # m = np.identity(3)
         # draw_arrows_by_projection1(os.path.join("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/","DB1"),self.iter["GrowingNet"],draw_occ=True,hair_ori=orientation)
-        m=self.img_filter.revert_rot
+        m=revert_rot
         points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color,sample_num=self.sample_num)
         mask = np.sum(colors,axis=1)
         colors[np.where(mask==255)]=color
@@ -199,12 +230,13 @@ class strand_inference:
             trans_hair(points,segments,color[[2,1,0,3]].tolist(),sample_num)
             # # # time.sleep(1)
             if use_gt:
+                set_camera(flag=0)
                 render(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
                 time.sleep(1)
                 img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"))
                 img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1g.png"),img)
-                set_camera(30)
+                set_camera(flag=1)
                 render(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
                 time.sleep(1)
                 img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2g.png"))
@@ -217,68 +249,44 @@ class strand_inference:
                 img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3g.png"),img)
             else:
-                save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out_paper_hd/"
+                set_camera(flag=0)
+                save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out_paper/"
                 render(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
                 time.sleep(1)
                 # img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_1.png"))
                 # img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_1.png"),img)
-                set_camera(30)
+                set_camera(flag=1)
                 render(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
                 time.sleep(1)
                 # img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_2.png"))
                 # img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_2.png"),img)
-                set_camera(-30)
+                set_camera(flag=2)
                 render(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
                 time.sleep(1)
                 # img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
                 # img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
+        segments = np.array(range(0,len(segments)))*segments
         return points,segments,colors
         
 if __name__=="__main__":
-    # gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/10_f.png")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
-    # image = cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img/1a6104485fb61f2371560063b7a15738.png")
-    # img_filter = filter_crop("/home/yxh/Documents/company/NeuralHDHair/Code","/home/yxh/Documents/company/NeuralHDHair/data/test",use_step=True)
-    # ori2D,_ = img_filter.pyfilter2neuralhd(image,"female","10_f",use_gt=False)
-    # # TODO:两种方式得到的segment图不太一样，seg中的对散发也能分割。哪个比较好 后续进行实验
-    # cv2.imshow("1",gt)
-    # cv2.waitKey()
-    # reset()
-    # segments,points = readhair("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/strands00001/hair_delete.hair")
-    # import pickle
-    # import scipy
-    # # # Load the pickle file
-    # with open(os.path.join("/home/yxh/Documents/HairNet/hairstylepickles",'strands00356.pkl'), 'rb') as f:
-    #     points = pickle.load(f)
-    # # hair = scipy.io.loadmat("/home/yxh/Documents/company/NeuralHDHair/roots1.mat")
-    # # points = hair["points"].reshape((-1,9,3))
-    # start = 0
-    # roots = []
-    # for i in range(0,len(points)):
-    #     if len(points[i])>1:
-    #         new_root = np.array(points[i])[0:1]
-    #         roots.append(new_root)
-    # roots = np.array(roots)
-    # roots = roots.reshape((-1,3))
-    # # scipy.io.savemat("roots1.mat", {"roots":roots})
-    # m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反
-    # roots = transform.matrix_transform(roots,m.params)
-    # trans_hair(roots,2)  
     use_unity=True
     gender = ['female','male']
     # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
     if use_unity:
         set_bgcolor()
-    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),use_hd=False,use_step=False,use_depth=False,use_strand=True,Bidirectional_growth=True)
+        set_camera(flag=1)
+    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),HairFilterLocal=False,use_hd=False,use_step=True,\
+                                 use_strand=False,Bidirectional_growth=True,gpu_ids=[1])
     save_path = os.path.join(os.path.dirname(__file__),"../data/test/out_paper")
     for g in gender:
         test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
         # test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img"
         test_dir = os.path.join(os.path.dirname(__file__),"../data/test/paper")
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[2:]):#31:32，19
+        for name in tqdm(file_names[1:]):#31:32，19
             # name = "10_f.png"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)

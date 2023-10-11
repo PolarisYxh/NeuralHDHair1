@@ -100,7 +100,7 @@ class image_loader(base_loader):
         ori_list = ori_list[:,[2,1,0]]
         segments = (np.ones(int(len(strand)/100))*100).astype("int")
         ori_list = ori_list.reshape((-1,100,3))
-        _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=True)
+        _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=True)#depth:0-1 normalize
         oriImg1 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
         mask_area = np.where(oriImg1!=0)
         mask = np.zeros_like(oriImg1)

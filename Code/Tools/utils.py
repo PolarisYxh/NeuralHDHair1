@@ -254,6 +254,7 @@ def get_image(d,flip=False,image_size=256,mode='Ori_conf',blur=False,no_use_dept
 
     return np.ascontiguousarray(input)
 def trans_image(oriImg,image_size):
+    oriImg = oriImg.astype('uint8')
     oriImg = cv2.resize(oriImg, (image_size, image_size))
     oriData = oriImg[:, :, [2, 1]].astype(np.float32) / 255.0  # R AND G
     index=np.where(oriData[:,0:1]<0.2,np.zeros_like(oriData[:,2:3]),np.ones_like(oriData[:,2:3]))
@@ -1348,7 +1349,7 @@ def delete_strand_out_ori(mask,strands,segments):
     index=np.where(occ==0)[0]
     s_index=index//v_num
     s_index, counts = np.unique(s_index, return_counts=True)
-    i= counts>v_num//3*2#发丝一半以上在膨胀后的区域，则可以删除
+    i= counts>v_num/5*3#发丝一半以上在膨胀后的区域，则可以删除
     s_index=s_index[i]
     strands = np.delete(strands, s_index, axis=0)
     segments = np.delete(segments, s_index, axis=0)
@@ -1635,9 +1636,9 @@ def close_voxel1(voxel,ori,k):
         # draw_circles_by_projection(voxel,iter=0)
         weight_occ1 = F.max_pool3d(voxel, kernel_size=k, stride=1, padding=p)#膨胀
         # draw_circles_by_projection(weight_occ1,iter=1)
-        weight_occ=F.avg_pool3d(weight_occ1,kernel_size=k, stride=1, padding=p)#膨胀
+        weight_occ=F.avg_pool3d(weight_occ1,kernel_size=k, stride=1, padding=p)#腐蚀
         # draw_circles_by_projection(weight_occ,iter=2)
-        weight_occ[weight_occ<1]=0#膨胀
+        weight_occ[weight_occ<1]=0#腐蚀
         # draw_circles_by_projection(weight_occ,iter=3)
         weight_occ+=voxel
         weight_occ[weight_occ>0]=1

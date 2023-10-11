@@ -7,7 +7,7 @@ import traceback
 import logging
 from flask import send_from_directory
 import cv2
-
+from skimage import transform
 def readjson(file):
     with open(file, 'r', encoding="utf-8") as load_f:
         load_dict = json.load(load_f)
@@ -45,8 +45,10 @@ class Handler(object):
         #     gpu_str = [str(i) for i in load_dict['gpus']]
         #     gpu_str = ','.join(gpu_str)
         #     os.environ['CUDA_VISIBLE_DEVICES'] =gpu_str
-        self.app = strand_inference(os.path.join(os.path.dirname(__file__),"../"),use_hd=False,use_step=False, use_depth=False,use_strand=True,Bidirectional_growth=True,gpu_ids=load_dict['gpus'])
+        self.app = strand_inference(os.path.join(os.path.dirname(__file__),"../"),use_hd=False,use_step=load_dict['use_step'],\
+                                    use_strand=load_dict['use_strand'],Bidirectional_growth=True,gpu_ids=load_dict['gpus'])
         self.cache_path = os.path.join(rFolder,'cache')
+        self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
         logging.info('segmentall handler init done.')
         self.log.logger.info('#########################segmentall Handler init done#######################')
     def queue_callback(self, mode, json_data):
@@ -77,7 +79,13 @@ class Handler(object):
         img = base642cvmat(json_data['imgFile'])
         # cv2.imshow("1",img)
         # cv2.waitKey()img,name,use_gt=False
-        points,segments,colors = self.app.inference(img)
+        points,segments,colors = self.app.inference(img,name=reqCode)
+         # 转换到unity空间
+        # 最初版的female_halfbody_medium.obj对齐到unity人脸模型
+        # m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反，
+        # v0.7版本的female_halfbody_medium.obj对齐到unity人脸模型
+        points = np.array(points).reshape([-1,3])
+        points = transform.matrix_transform(points,self.m.params)
         return points.tolist(),segments.tolist(),colors.tolist()
 
 

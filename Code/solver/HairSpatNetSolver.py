@@ -38,6 +38,7 @@ class HairSpatNetSolver(BaseSolver):
 
 
     def initialize_networks(self,opt):
+        print(torch.cuda.current_device())
         self.net=HairSpatNet(opt,in_cha=opt.input_nc,min_cha=self.Spat_min_cha,max_cha=self.Spat_max_cha)
         self.net.print_network()
         if opt.continue_train or opt.isTrain is False:
@@ -240,7 +241,7 @@ class HairSpatNetSolver(BaseSolver):
             image=torch.from_numpy(image)
             image=image.permute(2,0,1)
             Ori2D = image.clone()
-                # image = get_Bust("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1", image, self.opt.image_size)#TODO
+            # image = get_Bust("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1", image, self.opt.image_size)#TODO
             if isinstance(bust,np.ndarray) and use_bust:
                 image = get_Bust2(bust,image,self.opt.image_size,name=name)
                 # if name!="":
@@ -255,12 +256,16 @@ class HairSpatNetSolver(BaseSolver):
             if self.use_gpu():
                 image = image.cuda()
                 Ori2D = Ori2D.cuda()
+            save_image(image,"image1.png")
             if self.opt.input_nc==3:
                 norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
                 if self.use_gpu():
                     norm_depth = norm_depth.cuda()
                 image = torch.concat((image,norm_depth),dim=1)
-                # save_image(image,"1.png")
+            if image.shape[1]==2:
+                save_image(torch.cat([image.cpu(), torch.zeros(1, 1, 256, 256).cpu()], dim=1)[:, :3, ...],f"{name}.png")
+            else:
+                save_image(image,f"{name}.png")
             if self.opt.no_use_depth:
                 out_ori, out_occ = self.model.test(image,Ori2D)
             else:

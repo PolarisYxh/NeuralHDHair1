@@ -16,6 +16,51 @@ def readjson(file):
 def writejson(file, write_dict):
     with open(file, "w", encoding="utf-8") as dump_f:
         json.dump(write_dict, dump_f, ensure_ascii=False)
+        
+class HairFilterInterface:
+    def __init__(self,rfolder) -> None:
+        config_file = os.path.join(rfolder,"config_test.json")
+        load_dict = readjson(config_file)['HairFilter']
+        self.url = load_dict["url"]
+        self.rfolder = rfolder
+    def request_HairFilter(self, reqCode, mode, imgB64, is_test=False):
+        url = f"{self.url}/{mode}"
+        print(url,reqCode)
+        post_data = {"reqCode": reqCode,  "imgFile": imgB64}
+
+        if is_test:
+            post_data['is_test']=is_test
+        res = requests.post(url=url, data=json.dumps(post_data))
+        result = json.loads(res.content)
+        if (result["error"] == 0):
+            ori2D = result['ori2D']
+            bust = result['bust']
+            color = result['color']
+            rgb_image = result['ori_img']
+            revert_rot = result['revert_rot']
+            os.makedirs(f"{self.rfolder}/cache",exist_ok=True)
+            # parsing = base642cvmat(parsing)
+            return np.array(ori2D),np.array(bust),np.array(color),np.array(rgb_image).astype('uint8'),np.array(revert_rot)
+        else:
+            print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
+            return None,None,None
+    def request_depth(self, reqCode, mode, rgbB64, maskB64, is_test=False):
+        url = f"{self.url}/{mode}"
+        print(url,reqCode)
+        post_data = {"reqCode": reqCode,  "rgbFile": rgbB64,"maskFile":maskB64}
+
+        if is_test:
+            post_data['is_test']=is_test
+        res = requests.post(url=url, data=json.dumps(post_data))
+        result = json.loads(res.content)
+        if (result["error"] == 0):
+            depth_norm = result['depth_norm']
+            os.makedirs(f"{self.rfolder}/cache",exist_ok=True)
+            # parsing = base642cvmat(parsing)
+            return np.array(depth_norm)
+        else:
+            print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
+            return None,None,None
 class HairStepInterface:
     def __init__(self,rfolder) -> None:
         config_file = os.path.join(rfolder,"config_test.json")

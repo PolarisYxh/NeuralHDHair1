@@ -187,8 +187,9 @@ def drawLms(img, lms, color=(0, 255, 0)):
     img = img.copy()
     for lm in lms:
         cv2.circle(img, tuple(lm), 2, color, 1)
-    cv2.imshow("1",img)
-    cv2.waitKey()
+    cv2.imwrite("lms.png",img)
+    # cv2.imshow("1",img)
+    # cv2.waitKey()
     return img
 
 

@@ -47,7 +47,22 @@ def index():
         response_data = json.dumps(response_data)
         logging.info('Request end.')
         return response_data       
- 
+@app.route('/depth', methods=['POST'])
+def index1():
+    logging.info(f'Request success, start ...')
+    try:        
+        data = request.get_data()
+        json_data=json.loads(data)
+        logging.info(f'Receive data successfully.')
+        response_data = request_handler.queue_callback('depth',json_data)        
+        logging.info(f'Get response data.')            
+    except Exception as ex:
+        response_data = {'error':-1, 'errorInfo': 'Solve request fail. Post data format problem.'}
+        logging.error(f'Solve request fail. Post data format problem. {traceback.format_exc()}')
+    finally:
+        response_data = json.dumps(response_data)
+        logging.info('Request end.')
+        return response_data   
 if __name__ == "__main__":
     import sys
     workingDir = os.path.split(sys.argv[0])[0]

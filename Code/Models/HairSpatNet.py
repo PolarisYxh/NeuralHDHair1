@@ -10,6 +10,7 @@ import random
 import torch.nn.functional as F
 from torchvision.utils import save_image
 from Tools.utils import position_encoding
+from torch.cuda.amp import autocast, GradScaler
 class HairSpatNet(BaseNetwork):
 
     @staticmethod
@@ -165,10 +166,8 @@ class HairSpatNet(BaseNetwork):
         z=points[:,:,2:3]*95.
         z = z.permute(0, 2, 1)
         depth = self.index(depth_map, xy)
-
-
-
         self.depth_feat=depth/95.
+        
     def get_depth_feat1(self,depth_map,points):
         xy = points[:, :, [1, 0]]
         xy = (xy - 0.5) * 2
@@ -180,8 +179,8 @@ class HairSpatNet(BaseNetwork):
         xy = (xy - 0.5) * 2
         z=points[:,:,2:3]*(D-1)
         z=z.permute(0,2,1)
-        depth=self.index(depth_map, xy)
-        self.loss_weight=0.4+(depth-z+10.)/20.#z越大，loss_weight越小
+        depth=self.index(depth_map, xy)*(D-1)
+        self.loss_weight=0.4+(depth-z+10.*D/96)/(20.*D/96)#z越大，loss_weight越小
         self.loss_weight=self.loss_weight.clamp(0.2,1.)
         self.loss_weight=torch.where(depth==0,torch.ones_like(self.loss_weight),self.loss_weight)
 
@@ -250,8 +249,8 @@ class HairSpatNet(BaseNetwork):
 
         self.phi_occ=torch.cat(self.phi_occ,dim=2)
         self.phi_ori=torch.cat(self.phi_ori,dim=2)
-        self.phi_occ=self.phi_occ.cuda()
-        self.phi_ori=self.phi_ori.cuda()
+        self.phi_occ=self.phi_occ.to(torch.float16).cuda()
+        self.phi_ori=self.phi_ori.to(torch.float16).cuda()
 
         return self.out_ori,self.out_occ
 
@@ -269,7 +268,7 @@ class HairSpatNet(BaseNetwork):
         if mode=='ori':
             self.out_ori[:, :, z, x, y] = res
         elif mode=='occ':
-            self.out_occ[:, :, z, x, y] = res
+            self.out_occ[:, :, z, x, y] = res.to(torch.float32)
 
 
     def get_phi(self):

@@ -5,6 +5,7 @@ import torch.nn
 from Tools.utils import *
 import torch.autograd
 from Models.Local_filter import Local_Filter
+from torch.cuda.amp import autocast, GradScaler
 class HairModelingHDSolver(BaseSolver):
     # use add_info to fine train
     @staticmethod
@@ -37,8 +38,8 @@ class HairModelingHDSolver(BaseSolver):
 
 
     def initialize_networks(self,opt):
-        if hasattr(torch.cuda, 'empty_cache'):
-            torch.cuda.empty_cache()
+        # if hasattr(torch.cuda, 'empty_cache'):
+        #     torch.cuda.empty_cache()
         self.net_global=HairSpatNet(opt,in_cha=opt.input_nc,min_cha=self.Spat_min_cha,max_cha=self.Spat_max_cha)#U-net
         self.net_local=Local_Filter(opt)
 
@@ -61,10 +62,13 @@ class HairModelingHDSolver(BaseSolver):
         if len(opt.gpu_ids) > 0:
             import torch.nn as nn
             assert (torch.cuda.is_available())
+            # torch.cuda.set_device(opt.gpu_ids[0])
+            print(torch.cuda.current_device())
             # self.net_global=nn.DataParallel(self.net_global, device_ids=opt.gpu_ids)
             self.net_global=self.net_global.cuda()
             # self.net_local=nn.DataParallel(self.net_local, device_ids=opt.gpu_ids)
             self.net_local=self.net_local.cuda()
+            self.scaler = GradScaler()
 
 
 
@@ -120,12 +124,13 @@ class HairModelingHDSolver(BaseSolver):
 
                 out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, depth_map=depth,resolution=self.opt.resolution)
 
-                # self.loss_backward(self.loss_global,self.optimizer_global)
+                self.loss_backward(self.loss_global,self.optimizer_global,mix=False)
                 # self.loss_backward(self.loss_global,self.optimizer_local)
-                self.loss_backward(self.loss_local,self.optimizer_local)
+                self.loss_backward(self.loss_local,self.optimizer_local,mix=True)
 
 
                 visualizer.board_current_errors(self.loss_local)
+                visualizer.board_current_errors(self.loss_global)
                 if iter_counter.needs_printing():
 
                     losses = self.get_latest_losses()
@@ -194,6 +199,7 @@ class HairModelingHDSolver(BaseSolver):
             # 以下相当于self.preprocess_input1
             image = image.type(torch.float)
             Ori2D = Ori2D.type(torch.float)
+            save_image(image,"1.png")
             norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
             if self.use_gpu():
                 image = image.cuda()
@@ -218,11 +224,16 @@ class HairModelingHDSolver(BaseSolver):
             # pred_ori=pred_ori.reshape(H ,W,C*D)
             return pred_ori
 
-    def loss_backward(self, losses, optimizer,retain=False):
+    def loss_backward(self, losses, optimizer,retain=False,mix=False):
         optimizer.zero_grad()
         loss = sum(losses.values()).mean()
-        loss.backward(retain_graph=retain)
-        optimizer.step()
+        if mix:
+            self.scaler.scale(loss).backward(retain_graph=retain)
+            self.scaler.step(optimizer)
+            self.scaler.update()
+        else:
+            loss.backward(retain_graph=retain)
+            optimizer.step()
 
     def init_losses(self):
         self.total_loss = {}

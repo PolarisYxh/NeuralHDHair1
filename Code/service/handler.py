@@ -37,16 +37,20 @@ class Handler(object):
         self.log = log
         self.log.logger.info('#########################segmentall Handler init##########################')
         ## TODO: put own function module
-        from inference_step import step_inference
+        # from inference_step import step_inference
+        from image_filter import filter_crop
         ## model init
         load_dict = readjson(os.path.dirname(__file__) + "/config.json")
         model_type = load_dict["model_type"]
         device=load_dict["device"]
         if device=="cuda":
             os.environ['CUDA_VISIBLE_DEVICES'] =load_dict['gpus']
-        self.app = step_inference(os.path.join(os.path.dirname(os.path.dirname(__file__)),'..'))
+        # self.app = step_inference(os.path.join(os.path.dirname(os.path.dirname(__file__)),'..'))
+        self.app = filter_crop(os.path.join(os.path.dirname(__file__),"../"),\
+                                os.path.join(os.path.dirname(__file__),"../data/test"),\
+                                use_step=load_dict["use_step"],use_depth=load_dict["use_depth"],use_strand=["use_strand"])
         self.cache_path = os.path.join(rFolder,'cache')
-        logging.info('segmentall handler init done.')
+        logging.info('image pre-compute handler init done.')
         self.log.logger.info('#########################segmentall Handler init done#######################')
     def queue_callback(self, mode, json_data):
         reqCode = json_data['reqCode']
@@ -56,12 +60,19 @@ class Handler(object):
         try:
             if mode=="img":
                 ## TODO:
-                rst = self.process(json_data)
+                ori2D,bust,color,rgb_image,revert_rot = self.process(json_data)
                 # rst=json.dumps(rst,cls=MyEncoder)
-                response_data = {'reqCode': reqCode, 'step': rst, 'error':0, 'errorInfo': ''}
+                response_data = {'reqCode': reqCode, 'ori2D': ori2D, 'bust':bust,'color':color, \
+                                 'ori_img':rgb_image,'revert_rot':revert_rot,'error':0, 'errorInfo': ''}
                 logging.info(f'Handler successfully, reqCode: {reqCode}.')
                 os.system(f'echo \"Handler successfully\" >> cache/{reqCode}_service_log.log')
-
+            elif mode=="depth":
+                ## TODO:
+                depth_norm = self.process_depth(json_data)
+                # rst=json.dumps(rst,cls=MyEncoder)
+                response_data = {'reqCode': reqCode, 'depth_norm': depth_norm,'error':0, 'errorInfo': ''}
+                logging.info(f'Handler successfully, reqCode: {reqCode}.')
+                os.system(f'echo \"Handler successfully\" >> cache/{reqCode}_service_log.log')
         except Exception as ex:
             response_data = {'reqCode': reqCode, 'error':-1, 'errorInfo': str(ex)}
             logging.error(f'Handler fail ... reqCode: {reqCode} , {traceback.format_exc()}')
@@ -76,9 +87,18 @@ class Handler(object):
         img = base642cvmat(json_data['imgFile'])
         # cv2.imshow("1",img)
         # cv2.waitKey()img,name,use_gt=False
-        outimg = self.app.inference(img)
-        return outimg.tolist()
-
+        # outimg = self.app.inference(img)
+        ori2D,bust,color,rgb_image,revert_rot = self.app.pyfilter2neuralhd(img,"",reqCode,use_gt=False)
+        return ori2D.tolist(),bust.tolist(),color.tolist(),rgb_image.tolist(),revert_rot.tolist()
+    def process_depth(self, json_data):
+        reqCode = json_data['reqCode']
+        img = base642cvmat(json_data['rgbFile'])
+        mask = base642cvmat(json_data['maskFile'])
+        # cv2.imshow("1",img)
+        # cv2.waitKey()img,name,use_gt=False
+        # outimg = self.app.inference(img)
+        depth_norm= self.app.get_depth(img,mask)#dtype('float32')
+        return depth_norm.tolist()
 
 def delete_tmp_file(reqCode, add_files_list=[]):
     cache_file_list = [f"cache/{reqCode}_service_log.log"]

@@ -4,6 +4,7 @@ import torch
 from Tools.utils import get_spatial_points,sample,position_encoding
 from torch.nn import init
 from Models.base_block import ConvBlock,ResnetBlock
+from torch.cuda.amp import autocast, GradScaler
 class Decoder(nn.Module):
     def __init__(self,in_cha,max_cha,num_out,cond=False):
         super().__init__()
@@ -76,10 +77,11 @@ class HairSpatDecoder(nn.Module):
 
     def forward(self, caches,points,sample=True,depth=None):
         x,_=self.first_to_voxel(caches[-1],None,points,False)#x:[1, 256, 6, 8, 8]
+        # with autocast(enabled=False):
         # v=self.first_out_layer(x)
         for i in range(self.n_layer):
             up=self.conv3d_transpose[i](x)#up:[1, 256, 12, 16, 16]，[1, 128, 24, 32, 32]，[1, 64, 48, 64, 64]，[1, 32, 96, 128, 128]
-                                          #x: [1, 256, 6, 8, 8],    [1, 256, 12, 16, 16], [1, 128, 24, 32, 32],[1, 64, 48, 64, 64]，[1, 32, 1, 1, 160000]                                                               
+                                        #x: [1, 256, 6, 8, 8],    [1, 256, 12, 16, 16], [1, 128, 24, 32, 32],[1, 64, 48, 64, 64]，[1, 32, 1, 1, 160000]                                                               
             x,phi = self.voxel_models[i](caches[-2 - i], up, points, last_layer=(i == self.n_layer - 1 and sample is True),depth=depth)
 
             # v=sample(v,2)

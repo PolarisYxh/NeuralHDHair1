@@ -6,6 +6,10 @@ import os
 import sys
 import random
 sys.path.append(os.path.dirname(__file__))
+import platform
+plat = platform.system().lower()
+if plat != 'windows':
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
 def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
     scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1],bg_color=[0,0,0])
     if mesh:

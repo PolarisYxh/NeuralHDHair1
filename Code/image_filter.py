@@ -9,11 +9,10 @@ import math
 from skimage import transform as trans
 import trimesh
 try:
-    from .get_face_info import get_face_info,angle2matrix
+    from .service.get_face_info import get_face_info,angle2matrix
 except:
-    from get_face_info import get_face_info,angle2matrix
+    from Code.service.get_face_info import get_face_info,angle2matrix
 from copy import deepcopy
-from get_bust import render
 from dataload.render_strand import render_strand
 from scipy.spatial.transform import Rotation
 import torch
@@ -38,6 +37,9 @@ def apply_matrix(v, matrix):
 
 class filter_crop:
     def __init__(self,rFolder,saveFolder="",use_step=True,use_depth=False,use_strand=False) -> None:
+        # use_step (bool, optional): 网络直接生成分割图和方向图，151 docker restart segmentall-server. Defaults to True.
+        # use_depth (bool, optional): 需要使用归一化后的头发深度图作为输入. Defaults to False.
+        # use_strand (bool, optional): segmentanything网络直接生成分割图,本地生成方向图，151 docker restart segmentall-server. Defaults to False.
         self.rFolder = rFolder
         self.conf= readjson(os.path.join(rFolder,"config.json"))
         self.saveFolder = saveFolder
@@ -254,9 +256,9 @@ class filter_crop:
             #                         borderValue=0.0)
             return gt,bust,framesForHair[0]
         if gender=="female":
-            hair_point1 = (lms_3d[21]+lms_3d[22])-lms_3d[56]
+            hair_point1 = (lms_3d[21]+lms_3d[22])-lms_3d[33]
         else:
-            hair_point1 = (lms_3d[21]+lms_3d[22])-lms_3d[56]
+            hair_point1 = (lms_3d[21]+lms_3d[22])-lms_3d[33]
         # hair_point1 = hair_point1+lms_3d[30]-lms_3d[33]
         # hair_point = [332,152]
         # lms_3d = [325,357]

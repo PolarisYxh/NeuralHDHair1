@@ -11,6 +11,9 @@
     "port": 50086,
     "device":"cuda",
     "//":"device为cuda时，更改使用的gpu编号，device为cpu不影响",
-    "gpus":[3]
-    
+    "gpus":[0],
+    "//":"使用自研u-net作为分割算法",
+    "use_step":false,
+    "//":"使用segment anything作为分割算法",
+    "use_strand":true
 }
