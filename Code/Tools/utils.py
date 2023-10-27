@@ -160,8 +160,11 @@ def show_slice(ori,img,scale=1,mode=0):
     cv2.imwrite("ori2_3d1.png",img)
     # cv2.imshow("2.png",image.astype('uint8'))
     # cv2.waitKey()
-def show(ori,img,scale=1):
-    img = cv2.resize(img,(1024,1024))
+def show(ori,img=None,scale=1):
+    if isinstance(img,np.ndarray):
+        img = cv2.resize(img,(1024,1024))
+    else:
+        img = np.zeros((ori.shape[0]*8,ori.shape[0]*8,3))
     ori1 = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
     ori1 = ori1.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)# ori: 96*128*128*3
     ori1 = ori1[:, :, ::-1, :]* np.array([-1.0, 1.0, 1.0])*np.array([1,-1,-1])
@@ -170,9 +173,8 @@ def show(ori,img,scale=1):
     mask = (image**2).sum(-1) > 0
     image = image * 2 - 1 #(-1,1)
     img = cv2.flip(img,flipCode=1)
-    h = 128*scale
-    
-    w = 128*scale
+    h = image.shape[0]
+    w = image.shape[0]
     for hh in range(h):
         for ww in range(w):
             if mask[hh, ww]:
@@ -1636,12 +1638,12 @@ def close_voxel1(voxel,ori,k):
         # draw_circles_by_projection(voxel,iter=0)
         weight_occ1 = F.max_pool3d(voxel, kernel_size=k, stride=1, padding=p)#膨胀
         # draw_circles_by_projection(weight_occ1,iter=1)
-        weight_occ=F.avg_pool3d(weight_occ1,kernel_size=k, stride=1, padding=p)#腐蚀
+        weight_occ=F.avg_pool3d(weight_occ1,kernel_size=k, stride=1, padding=p)
         # draw_circles_by_projection(weight_occ,iter=2)
         weight_occ[weight_occ<1]=0#腐蚀
         # draw_circles_by_projection(weight_occ,iter=3)
         weight_occ+=voxel
-        weight_occ[weight_occ>0]=1
+        weight_occ[weight_occ>0]=1#场边缘会加入占用，使得场边缘可以平滑
         # draw_circles_by_projection(weight_occ,iter=4)
         avg_ori=F.avg_pool3d(ori,kernel_size=k, stride=1, padding=p)
         real_ori = ori*voxel+avg_ori*(weight_occ-voxel)#填充过空洞的ori
@@ -1891,8 +1893,8 @@ def get_Bust(dir,image,image_size,flip=False):
     Bust = torch.unsqueeze(Bust, 0)#人体渲染图
     image[:,0:2,...]=torch.where(label[:,0:2,...]==1,image[:,0:2,...],Bust[:,0:2,...])
     # save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),dir.split('/')[-1]+'.png')
-    if not os.path.exists(os.path.join(dir, 'trans.txt')):
-        save_image(torch.cat([image, torch.zeros(1, 1, image_size, image_size)], dim=1)[:, :3, ...], 'test1.png')
+    # if not os.path.exists(os.path.join(dir, 'trans.txt')):
+    #     save_image(torch.cat([image, torch.zeros(1, 1, image_size, image_size)], dim=1)[:, :3, ...], 'test1.png')
     # else:
     #     save_image(torch.cat([image, torch.zeros(1, 1, image_size, image_size)], dim=1)[:, :3, ...], 'test.png')
 
@@ -1920,7 +1922,7 @@ def get_Bust2(bust_img,image,image_size,trans=None,name=""):
     # label=torch.where(image[:,0:2,...]!=0,torch.ones_like(image[:,0:2,...]),torch.zeros_like(image[:,0:2,...]))
     Bust = torch.unsqueeze(Bust, 0)#人体渲染图
     image[:,0:2,...]=torch.where(label[:,0:2,...]==1,image[:,0:2,...],Bust[:,0:2,...])
-    save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),'display.png')
+    # save_image(torch.cat([image,torch.zeros(1,1,256,256)],dim=1),'display.png')
     return image[0]
 
 def get_Bust1(Bust_path,image,image_size,trans=None):

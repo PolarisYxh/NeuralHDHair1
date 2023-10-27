@@ -59,6 +59,6 @@ if __name__=="__main__":
     img = render_seg_strand(segments,strand)[0]
     cv2.imwrite("1.png",img)
     # cv2.waitKey()
-    # bodymesh = trimesh.load(os.path.join(os.path.dirname(__file__),'female_halfbody_medium.obj'))
+    # bodymesh = trimesh.load(os.path.join(os.path.dirname(__file__),'female_halfbody_medium_join.obj'))
     # img = render(bodymesh,out_img[0,:,:,:,:],isshow=True)
     

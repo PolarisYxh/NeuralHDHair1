@@ -16,7 +16,7 @@ class image_loader(base_loader):
         self.isTrain = opt.isTrain
         self.parent_dir = opt.current_path
         self.root = os.path.join(self.parent_dir,opt.strand_dir)
-        self.mesh = trimesh.load(os.path.join(os.path.dirname(__file__),"../../",'female_halfbody_medium.obj'))
+        self.mesh = trimesh.load(os.path.join(os.path.dirname(__file__),"../../",'female_halfbody_medium_join.obj'))
         self.orig_vertices = self.mesh.vertices.copy()
         self.orig_vertices = self.orig_vertices+np.array([0.00703544,-1.58652416,-0.01121912])
         if self.isTrain:
@@ -174,7 +174,8 @@ class image_loader(base_loader):
         gt_occ=torch.from_numpy(gt_occ)
         gt_orientation=gt_orientation.permute(3,0,1,2)#3,96,128,128
         gt_occ=gt_occ.permute(3,0,1,2)#1,96,128,128
-
+        # if self.opt.model_name=='HairModelingHD':
+        #     gt_orientation, _,gt_occ,_ =close_voxel1(gt_occ,gt_orientation,5)
         if 'add_info' in data_list:
             add_info=data_list['add_info']
         else:

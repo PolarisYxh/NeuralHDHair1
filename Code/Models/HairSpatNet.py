@@ -11,8 +11,25 @@ import torch.nn.functional as F
 from torchvision.utils import save_image
 from Tools.utils import position_encoding
 from torch.cuda.amp import autocast, GradScaler
+def draw_circles_by_projection(hair_occ,fileDir="", iter=0,draw_occ=True,name="1"):
+    import cv2
+    import os
+    h = 128
+    w = 128
+    d = 96
+   
+   
+    for d1 in range(d):
+        target = np.zeros((1024, 1024,3))
+        for hh in range(h):
+            for ww in range(w):
+                if hair_occ[hh, ww,d1]:
+                    center = np.array([ww * 8 + 4, hh * 8 + 4])
+                    cv2.putText(target,'%d'%(hair_occ[hh, ww,d1]), center,cv2.FONT_HERSHEY_SIMPLEX,0.4,(0,0,255),1)
+                    continue
+        cv2.imwrite(os.path.join(fileDir,f"pred_occ_{d1}.jpg"), target)
+            
 class HairSpatNet(BaseNetwork):
-
     @staticmethod
     def modify_options(parser):
         parser.add_argument('--Spat_min_cha',type=int,default=32)
@@ -41,15 +58,15 @@ class HairSpatNet(BaseNetwork):
         if opt.Ori_mode=='Ori_conf':
             self.in_cha+=1
 
-        n_layers=np.int(np.log2(self.image_size//self.latent_size))
+        n_layers=int(np.log2(self.image_size//self.latent_size))
         latent_d=voxel_size[0]//(voxel_size[1]//self.latent_size)
-        layers_d=np.int(np.log2(self.image_size)) - np.int(np.log2(voxel_size[1])) - 1
+        layers_d=int(np.log2(self.image_size)) - int(np.log2(voxel_size[1])) - 1
         assert (layers_d >= 0)  # make sure that image size is at least twice the height
         assert n_layers>=0, "image size should be >= latent_size"
         assert voxel_size[0]%(self.image_size//self.latent_size)==0, "latent_size should be reset"
         self.encoder=UnetEncoder(n_layers,self.in_cha,min_cha,max_cha,activation='lrelu')
-        from torchsummary import summary
-        summary(self.encoder, input_size=(self.in_cha, 256, 256), device='cpu')
+        # from torchsummary import summary
+        # summary(self.encoder, input_size=(self.in_cha, 256, 256), device='cpu')
         print("Encoder: image size from {} to {}, out_channel from {} to {}".format(self.image_size, self.latent_size,min_cha, max_cha))
         self.decoder_ori=HairSpatDecoder(min_cha,max_cha,3,n_layers-layers_d,latent_d,opt.no_use_depth)
         self.decoder_occ=HairSpatDecoder(min_cha,max_cha,1,n_layers-layers_d,latent_d,opt.no_use_depth)
@@ -100,8 +117,8 @@ class HairSpatNet(BaseNetwork):
         self.test_points=self.test_points[None]    ###### HWD   [0,1]
 
     def sample_train_point(self, gt_occ, gt_ori, sample_negative=False, sample_ratio=0.01):
-        B, _, D, H, W = gt_occ.size()
-        if sample_negative:
+        B, _, D, H, W = gt_occ.size()#[1, 1, 192, 256, 256]
+        if sample_negative:#概率较大，0.7，因为会有一些场外的点参与训练
             with torch.no_grad():
                 if D//96==1:
                     k=3
@@ -110,17 +127,18 @@ class HairSpatNet(BaseNetwork):
                 with torch.no_grad():
                     p = int(k / 2)
                     weight_occ = F.max_pool3d(gt_occ, kernel_size=k, stride=1, padding=p)
-                    weight_occ = F.avg_pool3d(weight_occ, kernel_size=k, stride=1, padding=p)
-            loss_weights = 1 - weight_occ.clone() + gt_occ
+                    weight_occ = F.avg_pool3d(weight_occ, kernel_size=k, stride=1, padding=p)#weight_occ边缘有些值为0的体素会置于1或者0.几
+            loss_weights = 1 - weight_occ.clone() + gt_occ#只有占用和没占用边缘地带的体素权重比较小，其他占用和没有占用的地方权重都是1
 
             all_occ = weight_occ.clone()
-            all_occ[all_occ > 0] = 1
+            all_occ[all_occ > 0] = 1#gt_occ占用场膨胀了边缘
             all_occ[all_occ == 0] = sample_ratio
+            #all_occ: gt_occ膨胀占用场 的地方为1,并以0.01的概率采样gt_occ膨胀占用场 没有占用的地方并设置为1
             all_occ = torch.where(torch.rand_like(all_occ) < all_occ, torch.ones_like(all_occ),
                                   torch.zeros_like(all_occ))
-            weight_occ[weight_occ < 1] = 0
-            occ = all_occ - weight_occ + gt_occ
-        else:
+            weight_occ[weight_occ < 1] = 0#gt_occ占用场被腐蚀了边缘
+            occ = all_occ - weight_occ + gt_occ#相当于膨胀gt_occ，并且gt_occ膨胀占用场 没有占用的地方随机设置了一些体素为1
+        else:#概率较小，因为只有发丝场内的点参与训练
             occ = gt_occ
             loss_weights = gt_occ.clone()
 
@@ -131,8 +149,8 @@ class HairSpatNet(BaseNetwork):
         all_index = []
         min_size = 80000*(2**(D//96))
         for b in range(B):
-            index = occ[b, 0, ...].nonzero()
-            index = index[:, [2, 1, 0]]
+            index = occ[b, 0, ...].nonzero()#[1, 1, 192, 256, 256]，index: D, H, W
+            index = index[:, [2, 1, 0]]#index: W, H, D
             n = index.size(0)
             random_index = list(range(n))
             random.shuffle(random_index)
@@ -157,7 +175,7 @@ class HairSpatNet(BaseNetwork):
         # self.loss_weight=None
 
         self.points /= torch.tensor([W-1, H-1, D-1], dtype=torch.float).cuda()#self.points  voxels normalize
-        self.points = self.points[:, :, [1, 0, 2]]
+        self.points = self.points[:, :, [1, 0, 2]]#points: H, W, D
 
 
     def get_depth_feat(self,depth_map,points):
@@ -174,15 +192,32 @@ class HairSpatNet(BaseNetwork):
         depth = self.index(depth_map, xy)
         self.depth_feat=depth
 
-    def compute_weight(self,depth_map,points,D):
-        xy = points[:, :, [1, 0]]
+    def compute_weight(self,depth_map,points,D,sample_negative=False):
+        xy = points[:, :, [1, 0]]#xy: W, H, grid_sample里面uv坐标x是图像的横向（宽度方向），y是竖向
         xy = (xy - 0.5) * 2
         z=points[:,:,2:3]*(D-1)
         z=z.permute(0,2,1)
+        # save_image(depth_map[0],"1.png")
         depth=self.index(depth_map, xy)*(D-1)
-        self.loss_weight=0.4+(depth-z+10.*D/96)/(20.*D/96)#z越大，loss_weight越小
-        self.loss_weight=self.loss_weight.clamp(0.2,1.)
-        self.loss_weight=torch.where(depth==0,torch.ones_like(self.loss_weight),self.loss_weight)
+        self.loss_weight1=0.4+(depth-z+10.*D/96)/(20.*D/96)#z离depth越远，loss_weight越小
+        self.loss_weight1=self.loss_weight1.clamp(0.,1.)
+        if sample_negative:#除了有发丝场内的点参与训练，还随机采样了场外的点
+            self.loss_weight1=torch.where(depth==0,torch.zeros_like(self.loss_weight1),self.loss_weight1)
+            #占用的地方，loss_weight按照离depth远近，设置为（1.到2）之间，越远weight越小,没占用的地方且没有depth的地方为1，有depth的地方1.到2；边缘地带为大概率小于1，所有体素在0-2之间
+            self.loss_weight+=self.loss_weight1
+            # self.loss_weight/=2
+        else:#只有发丝场内，即占用的点参与训练，所有权重在1-2之间
+            self.loss_weight1=torch.where(depth==0,torch.ones_like(self.loss_weight1),self.loss_weight1)
+            self.loss_weight+=self.loss_weight1#占用的地方，loss_weight按照离depth远近，设置为（1.到2）之间，越远weight越小
+            # self.loss_weight/=2
+        #for visualize loss_weight
+        # uv=(xy*63+64).to(torch.int).cpu().numpy()[0].T
+        # uv=uv[[1,0]] #uv: H, W
+        # z1=z[0].to(torch.int).cpu().numpy()//2
+        # p = np.append(uv,z1,axis=0)
+        # hair_occ = np.zeros((128,128,96))
+        # hair_occ[tuple(p)]=(self.loss_weight[0]*5-1).to(torch.int).cpu().numpy()
+        # draw_circles_by_projection(hair_occ)
 
     def forward(self,x,gt_occ,gt_ori,mode='generator',depth_map=None,norm_depth=None,no_use_depth=True):
         if mode=='generator':
@@ -192,12 +227,13 @@ class HairSpatNet(BaseNetwork):
             self.out_ori=torch.zeros(B,3,D,H,W).cuda()
             self.out_occ=torch.zeros(B,1,D,H,W).cuda()
             if random.random()<0.7:#loss偏小
+                sample_negative=True
                 self.sample_train_point(gt_occ,gt_ori,sample_negative=True)
             else:#loss偏大
+                sample_negative=False
                 self.sample_train_point(gt_occ, gt_ori, sample_negative=False)
             if depth_map is not None:
-
-                self.compute_weight(depth_map,self.points,D)
+                self.compute_weight(depth_map,self.points,D,sample_negative)
             if not no_use_depth:
                 self.get_depth_feat1(norm_depth,self.points)
                 depth=self.depth_feat

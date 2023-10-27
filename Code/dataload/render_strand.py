@@ -13,6 +13,10 @@ if plat != 'windows':
 def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
     scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1],bg_color=[0,0,0])
     if mesh:
+        try:
+            mesh.visual = mesh.visual.to_color()
+        except:
+            pass
         mesh.visual.vertex_colors = vertex_colors
         mesh = pyrender.Mesh.from_trimesh(mesh)
         scene.add(mesh)

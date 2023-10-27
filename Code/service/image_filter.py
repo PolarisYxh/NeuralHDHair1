@@ -2,12 +2,10 @@ import cv2
 try:
     from http_interface import *
     from get_face_info import get_face_info,angle2matrix
-    # from get_bust import render
     from inference_step import step_inference
 except:
     from .http_interface import *
     from .get_face_info import get_face_info,angle2matrix
-    # from .get_bust import render
     from .inference_step import step_inference
 
 import math
@@ -48,11 +46,13 @@ class filter_crop:
         self.conf= readjson(os.path.join(rFolder,"service/config.json"))
         self.saveFolder = saveFolder
         # self.face_seg = faceParsingInterface(rFolder)
+        self.hair_step = step_inference(os.path.join(rFolder,".."))
+        self.segall = segmentAllInterface(rFolder)
         self.use_step=use_step
-        if use_step:#使用unet 分割及获得方向图
-            self.hair_step = step_inference(os.path.join(rFolder,".."))
-        else:
-            self.segall = segmentAllInterface(rFolder)
+        # if use_step:#使用unet 分割及获得方向图
+        #     self.hair_step = step_inference(os.path.join(rFolder,".."))
+        # else:
+        #     self.segall = segmentAllInterface(rFolder)
         self.use_strand = use_strand#使用hairstep标准流程，用sam分割及hairstep strand生成方向图
         if use_strand:
             self.strandmodel = strandModel().cuda()
@@ -70,10 +70,8 @@ class filter_crop:
         self.insight_face_info = get_face_info(rFolder,False)
         #mean_landmark.json get from data/bust/color5.png,mean_landmark1.json from data/bust/body_0.png
         # self.mean_lms = np.array(readjson("mean_landmark1.json")['lms_3d'])
-        self.body = trimesh.load_mesh(os.path.join(rFolder,"../female_halfbody_medium.obj"))
+        self.body = trimesh.load_mesh(os.path.join(rFolder,"../female_halfbody_medium_join.obj"))
         self.vertices_orig = deepcopy(self.body.vertices)
-        self.body_only = trimesh.load_mesh(os.path.join(rFolder,"../body.obj"))
-        self.body_only_vertices_orig = deepcopy(self.body_only.vertices)
         # self.lms = self.body.vertices[self.conf["body_lms"],:]
     def get_depth(self,img,mask):
         with torch.no_grad():
@@ -88,7 +86,7 @@ class filter_crop:
             min_val = np.nanmin(depth_pred_masked + 2 * (1 - mask) * (np.abs(np.nanmax(depth_pred)) + np.abs(np.nanmin(depth_pred))))
             depth_pred_norm = (depth_pred_masked - min_val) / (max_val - min_val)*mask
             depth_pred_norm = np.clip(depth_pred_norm, 0., 1.)
-            cv2.imwrite("norm_depth.png",(depth_pred_norm*255).astype('uint8'))
+            # cv2.imwrite("norm_depth.png",(depth_pred_norm*255).astype('uint8'))
             return depth_pred_norm
     def pyfilter2neuralhd(self,img,gender="female",image_name="",use_gt=False):
         #pyfilter输出的和hairstep： B:第1通道，（0,1）表示（向右，向左）；G:第二通道，（0,1）表示（，向下）
@@ -104,7 +102,7 @@ class filter_crop:
             # crop_image = 1-crop_image
             # crop_image[:, :, 2]=0
             # crop_image=(crop_image*255).astype('uint8')
-            cv2.imwrite("1.png",(crop_image*255).astype('uint8'))
+            # cv2.imwrite("1.png",(crop_image*255).astype('uint8'))
             avg_color=np.append(avg_color,255)
             return crop_image,bust,avg_color,image,self.revert_rot
         if self.use_strand:
@@ -129,14 +127,15 @@ class filter_crop:
             crop_image = Variable(torch.from_numpy(crop_image).permute(2, 0, 1).float().unsqueeze(0)).cuda()
             strand_pred = self.strandmodel(crop_image)
             strand_pred = np.clip(strand_pred.permute(0, 2, 3, 1)[0].cpu().detach().numpy(), 0., 1.)  # 512 * 512 *60
-            x = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
-            x[:,:,1:3]=strand_pred
-            x[:,:,1]=1-x[:,:,1]
-            x[:,:,2]=1-x[:,:,2]
-            x[mask1==0]=[0,0,0]
-            x=(x*255).astype('uint8')
+            strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
+            strand2d[:,:,1:3]=strand_pred
+            strand2d[:,:,1]=1-strand2d[:,:,1]
+            strand2d[:,:,2]=1-strand2d[:,:,2]
+            strand2d[mask1==0]=[0,0,0]
+            strand2d=(strand2d*255).astype('uint8')
+            # cv2.imwrite(image_name.split('.')[0]+"_parse.png",strand2d)
             avg_color=np.append(avg_color,255)
-            return x,bust,avg_color,crop_image2,self.revert_rot
+            return strand2d,bust,avg_color,crop_image2,self.revert_rot
             # strand_pred = np.concatenate([mask+body*0.5, strand_pred*mask], axis=-1)
         import pyfilter#have to install apt-get install libopencv-dev==4.2.0 and run in python 3.8.*
         avg_color,image1=self.get_hair_avgcolor(img1,crop_image)
@@ -200,145 +199,148 @@ class filter_crop:
         
         center=np.array(self.conf["center"])
         vertices = self.vertices_orig-center
-        body_only_vertices = self.body_only_vertices_orig-center
         euler[2]=0
         r = Rotation.from_euler('xyz',euler,False)
         rot_matrix = r.as_matrix()
         self.revert_rot = np.linalg.inv(rot_matrix)
         self.body.vertices = np.dot(vertices,rot_matrix)+center
-        self.body_only.vertices = np.dot(body_only_vertices,rot_matrix)+center
         m=[]
         _,bust,img2 = render_strand([[]],[],self.body,orientation=[],intensity=3,matrix=m,mask=True)
         # cv2.imshow("1",bust)
         # cv2.waitKey() 
         self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])
         shoulder_lms = np.array(self.conf["shoulder_lms"])
-        self.shoulder_lms = apply_matrix(self.body_only.vertices[shoulder_lms,:], m[0])
+        self.shoulder_lms = apply_matrix(self.body.vertices[shoulder_lms,:], m[0])
         tp = 'affine'
         tform = trans.estimate_transform(tp, lms_3d[:27,:2], self.mean_lms[:27,:2])
         M = tform.params[0:2]
-        if self.use_step and not self.use_gt:
+        # if self.use_step and not self.use_gt:
             # s = framesForHair[0].shape
             # framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
-            step = self.hair_step.inference(framesForHair[0])
-            step = cv2.resize(step,(640,640))
-            # cv2.imshow("1",step)
-            # cv2.waitKey()
-            step = cv2.warpAffine(step,
-                                M, (640, 640),
-                                borderValue=0.0)
-            img1 = cv2.warpAffine(framesForHair[0],
-                                M, (640, 640),
-                                borderValue=0.0)
-            # cv2.imshow("1",step)
-            # cv2.waitKey()
-            
-            # get warp
-            # step1 = np.copy(step)
-            # parse = step1[:, :, 2]
-            # mask1=step1[:, :, [0, 1]]
-            # mask1[np.where(parse<0.8)]=[0,0]
-            
-            # mask1=np.sum(mask1,axis=2)
-            # parse[mask1>0]=0
-            # x=np.clip(parse,0,1)
-            # parse = np.clip(parse,0,1)*255
-            # # 这里parse是脸和身体的分割图
-            # _, thresh = cv2.threshold(parse, 127, 255, cv2.THRESH_BINARY)
-            # # thresh=thresh.astype('uint8')
-            # # Define a structuring element
-            # kernel = np.ones((5,5), np.uint8)
-            # # Apply erosion on the image
-            # thresh = cv2.erode(thresh, kernel, iterations=1)
-            # thresh = cv2.dilate(thresh, kernel, iterations=1)
-            # thresh=thresh.astype('uint8')
-            # cv2.imwrite('parse.png', thresh.astype('uint8'))
-            # contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            # m_l=0
-            # index = -1
-            # for i,contour in enumerate(contours):
-            #     l = len(contour)
-            #     if l>m_l:
-            #         m_l=l
-            #         index=i
-            # contour = contours[index]
-            # # Calculate epsilon based on the contour perimeter
-            # epsilon = 0.0005 * cv2.arcLength(contour, True)
-            # # Approximate the contour
-            # approx = cv2.approxPolyDP(contour, epsilon, True)
-            # # Draw the approximated contour on the original image
-            # crop_image1=cv2.drawContours((step*255).astype('uint8'), [approx], -1, (0, 255, 0), 1)
-            # # Display the image
-            # cv2.imwrite('Image.png', crop_image1)
-            
-            
-            # from scipy.spatial import KDTree
-            # kdtree = KDTree(approx[:,0,:])
-            # dist, index1 = kdtree.query(self.shoulder_lms[:,:2])
-            # real_lms = np.append(approx[:,0,:][index1],self.mean_lms[:,:2],axis=0)
-            # drawLms((step*255).astype('uint8'),real_lms.astype('int'))
-            # target_lms = np.append(self.shoulder_lms[:,:2],self.mean_lms[:,:2],axis=0)
-            # drawLms((step*255).astype('uint8'),target_lms.astype('int'))
-            # tform = trans.estimate_transform(tp, real_lms, target_lms)
-            # M1 = tform.params[0:2]
-            # step = cv2.warpAffine(step,
-            #                     M1, (640, 640),
-            #                     borderValue=0.0)
-
-            step = cv2.resize(step,(256,256))
-            return step,bust,img1
-        if self.use_gt:
-            gt=cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/strand_map/{image_name}")#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
-            # TODO:两种方式得到的segment图不太一样，seg中的对散发也能分割。哪个比较好 后续进行实验
-            # gt_parsing=gt[:,:,2].copy()
-            # gt_parsing[gt_parsing!=255]=0
-            # gt_parsing = cv2.imread(f"/home/yxh/Documents/company/NeuralHDHair/data/test/seg/{image_name}")
-            gt[:,:,2]=255-gt[:,:,0]
-            gt[:,:,1]=255-gt[:,:,1]
-            gt[:,:,0]=0
-            bg = np.where((gt[:,:,2]==gt[:,:,1]) & (gt[:,:,1]==255))
-            gt[bg] = [0,0,0]
-            scale = 640/max(gt.shape[0],gt.shape[1])
-            gt = cv2.resize(gt,(int(scale*gt.shape[1]), int(scale*gt.shape[0])))
-            gt = cv2.warpAffine(gt,
-                                    M, (640, 640),
-                                    borderValue=0.0)
-            gt = cv2.resize(gt,(256,256))
-            return gt,bust,framesForHair[0]
-        if gender=="female":
-            hair_point1 = (lms_3d[21]+lms_3d[22])-lms_3d[33]
-        else:
-            hair_point1 = (lms_3d[21]+lms_3d[22])-lms_3d[33]
-        # hair_point1 = hair_point1+lms_3d[30]-lms_3d[33]
-        # hair_point = [332,152]
-        # lms_3d = [325,357]
-        imgB64 = cvmat2base64(framesForHair[0])
+        step = self.hair_step.inference(framesForHair[0])
+        step = cv2.resize(step,(640,640))
+        step_align = cv2.warpAffine(step,
+                            M, (640, 640),
+                            borderValue=0.0)
+        #使用sam分割，需要先找到头发的点位
+        parse = step[:, :, 2]
+        mask1=step[:, :, [0, 1]]
+        mask1[np.where(parse<0.8)]=[0,0]
+        mask1=np.sum(mask1,axis=2)
+        mask1[mask1>0]=255
+        # mask1[(lms_3d[21][1]+lms_3d[22][1])//2:,:] = 0
+        # kernel = np.ones((5,5),np.uint8)
+        # mask1 = cv2.erode(mask1.astype('uint8'),kernel,iterations = 1)
+        hair_area1 = np.where(mask1>0)
+        # cv2.imwrite(image_name.split('.')[0]+"_mask.png",mask1)
+        # 找中位的点,先找到横向的中间，再找到纵向的中间
+        hair_area1 = np.array(hair_area1).T
+        sorted_indices = np.argsort(hair_area1[:, 1])
+        sorted_points = hair_area1[sorted_indices]
+        m_y = sorted_points[len(sorted_points)//2][1]
+        y=sorted_points[sorted_points[:,1]==m_y]
+        sorted_indices = np.argsort(y[:, 0])
+        sorted_points = y[sorted_indices]
+        hair_point1 = sorted_points[len(sorted_points)//2][[1,0]]
+        
+        imgB64 = cvmat2base64(framesForHair[0])#framesForHair[0] 640,640
         aligned = cv2.warpAffine(framesForHair[0],
                                 M, (640, 640),
                                 borderValue=0.0)
-        masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[30][:2]]),[1,0])#
+        masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[30,:2],
+                                                                                    lms_3d[33,:2]]),[1,0,0])
+        if masks[tuple(lms_3d[27,[1,0]].astype('int').T)]==True:
+            masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[30,:2]]),[1,0])
         parsing = np.zeros_like(framesForHair[0][:,:,0])
         parsing[masks] = 255
         save_parsing = np.zeros_like(framesForHair[0])
         save_parsing[masks] = framesForHair[0][masks]
+        # cv2.circle(save_parsing, tuple(hair_point1), 1, (255, 0, 0), 2)
+        # cv2.imwrite(image_name.split('.')[0]+"_1.png",save_parsing)
         aligned_parsing = cv2.warpAffine(parsing,
                                 M, (640, 640),
                                 borderValue=0.0)
         aligned_parsing[(aligned_parsing!=0)]=255
         aligned[aligned_parsing==0]=[0,0,0]
-        # cv2.imwrite(os.path.join(self.saveFolder,gender+"_out",image_name[:-4]+"_parse.png"),save_parsing)
-        # cv2.imshow("1",aligned)
-        # cv2.waitKey()
+        aligned_mask=np.sum(aligned,axis=2)
+        hair_area=np.where(aligned_mask!=0)
+        M1 = np.identity(2)
+        M1 = np.append(M1,np.array([[0,0]]).T,axis=1)
+        # cv2.imwrite("lms2.png",aligned)
+        # cv2.imwrite("lms3.png",(step_align*255).astype('uint8'))
+        # get warp to align standard shoulder and people's shoulder
+        
+        if np.max(hair_area[0])>self.mean_lms[8,1] and np.max(aligned_mask[tuple(self.shoulder_lms[:,[1,0]].T.astype('int'))])==0:#头发长于下巴且短于肩膀，需要在尺度上对齐肩膀和头发
+            parse = step_align[:, :, 2]
+            mask1=step_align[:, :, [0, 1]]
+            mask1[np.where(parse<0.8)]=[0,0]
+            mask1=np.sum(mask1,axis=2)
+            parse[mask1>0]=0
+
+            parse = np.clip(parse,0,1)*255
+            # 这里parse是脸和身体的分割图
+            _, thresh = cv2.threshold(parse, 127, 255, cv2.THRESH_BINARY)
+            # Define a structuring element
+            kernel = np.ones((5,5), np.uint8)
+            # Apply erosion on the image
+            thresh = cv2.erode(thresh, kernel, iterations=1)
+            thresh = cv2.dilate(thresh, kernel, iterations=1)
+            thresh=thresh.astype('uint8')
+            # cv2.imwrite('parse.png', thresh.astype('uint8'))
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            contour = max(contours,key=cv2.contourArea)
+            # Calculate epsilon based on the contour perimeter
+            epsilon = 0.0001 * cv2.arcLength(contour, True)
+            # Approximate the contour
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            # Draw the approximated contour on the original image
+            crop_image1=cv2.drawContours((step_align*255).astype('uint8'), [approx], -1, (0, 255, 0), 1)
+            # Display the image
+            # cv2.imwrite('lms.png', crop_image1)
+            
+            #在轮廓中找到最接近的关键点
+            from scipy.spatial import KDTree
+            kdtree = KDTree(approx[:,0,:])
+            dist, index1 = kdtree.query(self.shoulder_lms[[3,4],:2])
+            idx = [0,16] #0,16,19,
+            real_lms = np.append(approx[:,0,:][index1],self.mean_lms[idx,:2],axis=0)
+            # drawLms((step_align*255).astype('uint8'),real_lms.astype('int'))
+            target_lms = np.append(self.shoulder_lms[[3,4],:2],self.mean_lms[idx,:2],axis=0)
+            # drawLms((step_align*255).astype('uint8'),target_lms.astype('int'),name="lms1.png")
+            tform = trans.estimate_transform(tp, real_lms, target_lms)
+            M1 = tform.params[0:2]
+            M1[0,0]=1#左右方向尺度不变，仅拉长头发到肩膀
+            M1[0,1]=0
+            M1[1,0]=0
+            M1[0,2]=0
+
+        aligned = cv2.warpAffine(aligned,
+                                M1, (640, 640),
+                                borderValue=0.0)
+        # for debug
+        # bust1 = cv2.resize(bust,(640,640))
+        # aligned[(bust1>0)&(aligned_parsing==0)]=[0,0,255]
+        # cv2.imwrite(image_name.split('.')[0]+"_parse.png",aligned)
         return aligned,bust,framesForHair[0]
 if __name__=="__main__":
     gender = ['male','female']
-    test_dir="/home/yangxinhang/NeuralHDHair/data/test/paper"
+    test_dir="./data/test/paper"
     file_names = os.listdir(test_dir)
-    for name in file_names[1:]:
+    file_names = ["female_51.jpg","female_53.jpg","female_12.jpg","male_40.jpg","female_31.jpg"]
+    os.environ['CUDA_VISIBLE_DEVICES'] ="4"
+    
+    # body = trimesh.load_mesh("/app/female_halfbody_medium_join.obj")
+    # body.visual = body.visual.to_color()
+    # body.visual.vertex_colors = np.array([0, 0, 0, 255])
+    # _,bust,img2 = render_strand([[]],[],body,orientation=[],intensity=3,mask=True)
+    # cv2.imwrite("1.png",(bust*255).astype('uint8'))
+    for name in file_names:
+        # name = "female_12.jpg"
         test_file = os.path.join(test_dir,name)
         img = cv2.imread(test_file)
         # img = cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/Bust/body_0.png")
         fil = filter_crop(os.path.join(os.path.dirname(__file__),"../"),\
                             os.path.join(os.path.dirname(__file__),"../data/test"),\
-                            use_step=True,use_depth=True,use_strand=False)
+                            use_step=False,use_depth=False,use_strand=True)
         fil.pyfilter2neuralhd(img,image_name=name)

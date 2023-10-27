@@ -12,8 +12,18 @@ class Local_Filter(BaseNetwork):
         parser.add_argument('--num_stack', type=int, default=2)
         parser.add_argument('--hg_depth', type=int, default=4)
         parser.add_argument('--hg_down', type=str, default='avg_pool')
-        parser.add_argument('--mlp_channels_Occ', type=list, default=[292, 512,  512,256,256, 128, 1])
-        parser.add_argument('--mlp_channels_Ori', type=list, default=[292, 512,  512,256,256, 128, 3])
+        use_add_info = True
+        use_ori = False
+        if use_add_info:
+            parser.add_argument('--use_add_info', type=bool, default=use_add_info)
+            parser.add_argument('--use_ori', type=bool, default=use_ori)
+            parser.add_argument('--mlp_channels_Occ', type=list, default=[292, 512,  512,256,256, 128, 1])
+            parser.add_argument('--mlp_channels_Ori', type=list, default=[292, 512,  512,256,256, 128, 3])
+        else:
+            parser.add_argument('--use_ori', type=bool, default=False)
+            parser.add_argument('--use_add_info', type=bool, default=False)
+            parser.add_argument('--mlp_channels_Occ', type=list, default=[260, 512,  512,256,256, 128, 1])
+            parser.add_argument('--mlp_channels_Ori', type=list, default=[260, 512,  512,256,256, 128, 3])
         # parser.add_argument('--mlp_ori_channels',type=list,default=[257,1024,512,256,128,3])
         parser.add_argument('--mlp_norm', default=None)
         parser.add_argument('--mlp_res_layers', type=list, default=[2, 3,4])
@@ -25,7 +35,6 @@ class Local_Filter(BaseNetwork):
         parser.add_argument('--info_mode',type=str,default='L')
         parser.add_argument('--resolution',type=list,default=[96*2,128*2,128*2])
         parser.set_defaults(use_HD=True)
-
         return parser
 
 
@@ -33,8 +42,9 @@ class Local_Filter(BaseNetwork):
         super().__init__()
         self.num_stack=opt.num_stack
         self.hg_depth=opt.hg_depth
+        self.opt = opt
         self.in_cha=1
-        if opt.info_mode=='amb':
+        if opt.info_mode=='amb' or opt.use_ori:
             self.in_cha=2
         self.hg_dim=opt.hg_dim
         self.hg_norm=opt.hg_norm
@@ -62,21 +72,27 @@ class Local_Filter(BaseNetwork):
 
     def query(self,points,z_feat_ori,z_feat_occ):
         xy = points[:, :, [1, 0]]
-        im_feat=self.im_feat_list[-1]
+        
         # im_feat=torch.zeros_like(im_feat)
         xy=(xy-0.5)*2
 
         sp_feat = points[:, :, 2:3]
         sp_feat = sp_feat.permute(0, 2, 1)
-        # point_local_feat_ori = [self.index(im_feat, xy),z_feat_ori, sp_feat]
-        point_local_feat_ori = [self.index(im_feat, xy),z_feat_ori]
-        point_local_feat_ori = torch.cat(point_local_feat_ori, 1)
+        if self.opt.use_add_info:
+            im_feat=self.im_feat_list[-1]
+            # point_local_feat_ori = [self.index(im_feat, xy),z_feat_ori, sp_feat]
+            point_local_feat_ori = [self.index(im_feat, xy),z_feat_ori]# self.index(im_feat, xy) [1,32,320000];z_feat_ori [1, 260, 320000]
+            point_local_feat_ori = torch.cat(point_local_feat_ori, 1)
+        else:
+            point_local_feat_ori = z_feat_ori
         self.pred_ori,_ = self.Conv_MLP_Ori(point_local_feat_ori)
         self.pred_ori = pixel_norm(self.pred_ori)
-
-        # point_local_feat_occ=[self.index(im_feat, xy),z_feat_occ, sp_feat]
-        point_local_feat_occ=[self.index(im_feat, xy),z_feat_occ]
-        point_local_feat_occ=torch.cat(point_local_feat_occ,1)
+        if self.opt.use_add_info:
+            # point_local_feat_occ=[self.index(im_feat, xy),z_feat_occ, sp_feat]
+            point_local_feat_occ=[self.index(im_feat, xy),z_feat_occ]
+            point_local_feat_occ=torch.cat(point_local_feat_occ,1)
+        else:
+            point_local_feat_occ=z_feat_occ
         self.pred_occ,_ = self.Conv_MLP_Occ(point_local_feat_occ)
 
 
@@ -117,7 +133,10 @@ class Local_Filter(BaseNetwork):
 
             # print(strand2D.size())
             with autocast(dtype=torch.float16):
-                self.im_feat_list,_ = self.image_filter(strand2D)
+                if self.opt.use_add_info and self.opt.use_ori:
+                    self.im_feat_list,_ = self.image_filter(image)
+                elif self.opt.use_add_info:
+                    self.im_feat_list,_ = self.image_filter(strand2D)
                 self.query(points,feat_ori.detach(),feat_occ.detach())
 
                 ori,occ=self.get_pred()
@@ -138,7 +157,18 @@ class Local_Filter(BaseNetwork):
         with torch.no_grad():
             out_ori_low, out_occ_low=net_global.test(image,Ori2D,resolution,step=step)
         feat_ori, feat_occ = net_global.get_phi()
-
+        # from Tools.utils import show
+        # import numpy as np
+        # out_occ_low[out_occ_low>=0.2]=1
+        # out_occ_low[out_occ_low<0.2]=0
+        # pred_ori=out_ori_low*out_occ_low
+        # pred_ori=pred_ori.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
+        # pred_ori=pred_ori.cpu().numpy()
+        # pred_ori=pred_ori * np.array([1, -1, -1])
+        # pred_ori=pred_ori.transpose(0,2,3,4,1)
+        # _,H,W,C,D=pred_ori.shape[:]
+        # pred_ori=pred_ori.reshape(H ,W,C*D)
+        # show(pred_ori,scale=1)
 
         points=net_global.test_points
         # with autocast(dtype=torch.float16):

@@ -227,7 +227,7 @@ class HairSpatNetSolver(BaseSolver):
             pred_ori=pred_ori.cpu().numpy()
             ori = save_ori_as_mat(pred_ori,self.opt,suffix="_"+str(self.opt.which_iter)+'_1')
             
-    def inference(self,image,use_step,bust=None,depth=None,norm_depth=None, use_bust=True,name=""):
+    def inference(self,image,use_step,bust=None,depth=None,norm_depth=None, use_bust=True,name="",resolution=[96,128,128]):
         self.model.eval()
         with torch.no_grad():
             #以下相当于dataloader.generate_test_data()
@@ -256,26 +256,27 @@ class HairSpatNetSolver(BaseSolver):
             if self.use_gpu():
                 image = image.cuda()
                 Ori2D = Ori2D.cuda()
-            save_image(image,"image1.png")
+            # save_image(image,"image1.png")
             if self.opt.input_nc==3:
                 norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
                 if self.use_gpu():
                     norm_depth = norm_depth.cuda()
                 image = torch.concat((image,norm_depth),dim=1)
             if image.shape[1]==2:
-                save_image(torch.cat([image.cpu(), torch.zeros(1, 1, 256, 256).cpu()], dim=1)[:, :3, ...],f"{name}.png")
+                save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],f"{name}.png")
             else:
                 save_image(image,f"{name}.png")
             if self.opt.no_use_depth:
-                out_ori, out_occ = self.model.test(image,Ori2D)
+                out_ori, out_occ = self.model.test(image,Ori2D,resolution=resolution)
             else:
-                out_ori, out_occ = self.model.test(image,Ori2D,depth_map=depth)
+                out_ori, out_occ = self.model.test(image,Ori2D,depth_map=depth,resolution=resolution)
             out_occ[out_occ>=0.2]=1
             out_occ[out_occ<0.2]=0
             pred_ori=out_ori*out_occ
             pred_ori=pred_ori.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
             pred_ori=pred_ori.cpu().numpy()
             pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
+            # show(pred_ori,scale=1)
             # 以下为save_ori_as_mat所做的操作
             # pred_ori=pred_ori * np.array([1, -1, -1])
             # pred_ori=pred_ori.transpose(0,2,3,4,1)

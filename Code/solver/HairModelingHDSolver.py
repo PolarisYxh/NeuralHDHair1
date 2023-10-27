@@ -199,7 +199,7 @@ class HairModelingHDSolver(BaseSolver):
             # 以下相当于self.preprocess_input1
             image = image.type(torch.float)
             Ori2D = Ori2D.type(torch.float)
-            save_image(image,"1.png")
+            # save_image(image,"1.png")
             norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
             if self.use_gpu():
                 image = image.cuda()
@@ -214,8 +214,8 @@ class HairModelingHDSolver(BaseSolver):
             pred_ori=out_ori*out_occ
             pred_ori=pred_ori.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
             pred_ori=pred_ori.cpu().numpy()
-            path=os.path.join(self.opt.current_path, self.opt.save_root, self.opt.check_name, 'record', self.opt.test_file)
             pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
+            # show(pred_ori,scale=1)
             # pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
             # 以下为save_ori_as_mat所做的操作
             # pred_ori=pred_ori * np.array([1, -1, -1])

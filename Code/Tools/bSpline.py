@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
-from celluloid import Camera  # 保存动图时用，pip install celluloid
+
 try:
     from .utils import timeCost
 except:
@@ -106,6 +106,7 @@ def bspline_interp(P,k,NodeVector,nums):
         path.append(p_u)
     return path
 if __name__=='__main__':
+    from celluloid import Camera  # 保存动图时用，pip install celluloid
     ## 数据定义
     k = 3  # k阶、k-1次B样条
 

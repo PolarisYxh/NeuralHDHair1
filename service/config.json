@@ -11,9 +11,13 @@
     "port": 50086,
     "device":"cuda",
     "//":"device为cuda时，更改使用的gpu编号，device为cpu不影响",
-    "gpus":[0],
+    "gpus":[3],
     "//":"使用自研u-net作为分割算法",
     "use_step":false,
-    "//":"使用segment anything作为分割算法",
-    "use_strand":true
+    "//":"使用segment anything作为分割算法,目前都用到了",
+    "use_strand":true,
+    "//":"使用第三个modeling网络,不管use_hd,voxel_size 都是 192,256,256",
+    "use_modeling":true,
+    "//":"使用voxel_size = 192,256,256",
+    "use_hd":false
 }

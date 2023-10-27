@@ -10,6 +10,7 @@ import torch.nn
 from torch.cuda.amp import autocast, GradScaler
 # from Tools.resample import resample,process_list
 from Tools import pyBsplineInterp #pyBsplineInterp.cpython-38-x86_64-linux-gnu generated from BSpline directory
+import logging
 class GrowingNetSolver(BaseSolver):
 
     @staticmethod
@@ -107,7 +108,7 @@ class GrowingNetSolver(BaseSolver):
             if os.path.exists(path):
                 self.GrowingNet=self.load_network(self.GrowingNet,'GrowingNet',opt.which_iter,opt)
         else:
-            print(" Training from Scratch! ")
+            logging.info(" Training from Scratch! ")
             self.GrowingNet.init_weights(opt.init_type,opt.init_variance)
 
     def train(self,iter_counter,dataloader,visualizer):
@@ -272,7 +273,7 @@ class GrowingNetSolver(BaseSolver):
             with torch.no_grad():
                 if self.opt.Bidirectional_growth:
                     pt_num = self.pt_num//2 #default is self.pt_num-1
-                    print('begin.....')
+                    logging.info('begin.....')
                     start = time.time()
                     # wcenters,wlatents=self.model_on_one_gpu.encoder(gt_orientation)
                     # wlatents=wlatents.expand(len(self.opt.gpu_ids),*wlatents.size()[1:])
@@ -286,14 +287,14 @@ class GrowingNetSolver(BaseSolver):
                         strands=strands.to(torch.float16)
                         out_points_2, labels_2, out_points_2_Inv, labels_2_Inv=self.model(strands,gt_orientation,pt_num,'rnn')
                     # torch.cuda.synchronize()
-                    print('grow cost:', time.time() - start)
+                    logging.info(f'grow cost:{time.time() - start}')
 
                 else:
                     pt_num = self.pt_num #default is self.pt_num-1
                     out_points_2, labels_2 = self.model(strands,gt_orientation,pt_num,'rnn')
 
 
-        print(out_points_2.size())
+        # logging.info(out_points_2.size())
         gt_orientation=gt_orientation.permute(0,2,3,4,1)
         out_points_2=out_points_2.permute(0,2,3,1)
         if self.opt.pred_label:
@@ -387,20 +388,21 @@ class GrowingNetSolver(BaseSolver):
         left = np.min(samle_voxel_index[:,2], axis=0)#左右
         right = np.max(samle_voxel_index[:,2], axis=0)
         mid = (low1+high1)//2
+        scale = max(occ.shape)//128
         self.pt_num = int((high1-low1)*1.5)
         low = np.min(self.roots[:,1],axis=0)
         high = np.max(self.roots[:,1],axis=0)
         samle_voxel_index2 = samle_voxel_index[np.where(samle_voxel_index[:,1]<=high)][...,:3]#对头皮毛孔以上的体素进行采样
         # if high1-low1>90:
         #     random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root*2)]
-        if mid>high:
-            samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==mid)][...,:3]
-            random_points=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root)]
-            random_points=np.append(random_points,samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)],axis=0)
-            random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)]
-        else:
-            self.pt_num = 72
+        if mid>40*scale:
+            # samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==mid)][...,:3]
+            # random_points=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root)]
+            # random_points=np.append(random_points,samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)],axis=0)
             random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)]
+        else:
+            self.pt_num = 72*scale
+            random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
         random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]
         random_points=random_points[...,None,:]
         

@@ -69,8 +69,8 @@ class StepNetSolver(BaseSolver):
                 print(" Training from Scratch! ")
                 self.net.init_weights(opt.init_type, opt.init_variance)
                 
-            from torchsummary import summary
-            summary(self.net, input_size=(3, 256, 256), device='cpu')
+            # from torchsummary import summary
+            # summary(self.net, input_size=(3, 256, 256), device='cpu')
         if len(opt.gpu_ids) > 0:
             assert (torch.cuda.is_available())
             self.model=self.net
@@ -187,7 +187,7 @@ class StepNetSolver(BaseSolver):
                     input,gt_feat,gt_sum,target = self.preprocess_input(datas)
                     input,gt_feat,gt_sum,target = input[None],gt_feat[None],gt_sum[None],target[None]
                     out_img = self.model(input)
-                    save_image(out_img[0],"test_step_display.png")
+                    # save_image(out_img[0],"test_step_display.png")
                     self.G_loss["test_loss"] = 0.1*self.crit_vgg(out_img, gt_feat, target_is_features=True)
                     self.G_loss["test_loss"] += self.L1loss(out_img, target)/(3*gt_sum.squeeze().sum())
                     self.loss.append(self.G_loss["test_loss"])
@@ -206,7 +206,7 @@ class StepNetSolver(BaseSolver):
             # img = out_img[0][[2, 1, 0], :, :,]#不可导，使用矩阵乘法进行通道重排才可导
             # img = img.cpu().numpy().transpose([1,2,0])
             # cv2.imwrite("test_step_display.png",img)
-            save_image(out_img[0][[2,1,0],:,:],"test_step_display.png")
+            # save_image(out_img[0][[2,1,0],:,:],"test_step_display.png")
             return out_img[0].permute(1, 2, 0).to("cpu").numpy()
     def loss_backward(self, losses, optimizer,retain=False):
         optimizer.zero_grad()

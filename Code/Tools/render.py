@@ -114,7 +114,7 @@ if __name__=="__main__":
                 strand1=np.append(strand1,points)
             strand1 = strand1.reshape((-1,3))
     workdir = os.path.dirname(__file__)
-    mesh = trimesh.load(os.path.join(workdir,'../../female_halfbody_medium.obj'))
+    mesh = trimesh.load(os.path.join(workdir,'../../female_halfbody_medium_join.obj'))
     strand1=strand1.reshape((-1,100,3))
     img = render_strand(strand1,mesh,intensity=3,mask=False)
     cv2.imshow("1",img[0])
