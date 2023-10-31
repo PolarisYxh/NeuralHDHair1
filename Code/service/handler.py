@@ -35,7 +35,7 @@ def base642cvmat(base64_data):
 class Handler(object):
     def __init__(self,rFolder,bDebug,log):
         self.log = log
-        self.log.logger.info('#########################segmentall Handler init##########################')
+        self.log.logger.info('#########################hairstrand2d Handler init##########################')
         ## TODO: put own function module
         # from inference_step import step_inference
         from image_filter import filter_crop
@@ -51,7 +51,7 @@ class Handler(object):
                                 use_step=load_dict["use_step"],use_depth=load_dict["use_depth"],use_strand=["use_strand"])
         self.cache_path = os.path.join(rFolder,'cache')
         logging.info('image pre-compute handler init done.')
-        self.log.logger.info('#########################segmentall Handler init done#######################')
+        self.log.logger.info('#########################hairstrand2d Handler init done#######################')
     def queue_callback(self, mode, json_data):
         reqCode = json_data['reqCode']
         self.log.logger.info(f'{reqCode}:#################Handler start#################.')

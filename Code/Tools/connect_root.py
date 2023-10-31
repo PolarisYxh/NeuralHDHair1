@@ -1,19 +1,20 @@
-import requests
-import json
+# import requests
+# import json
 import numpy as np
 # from .file_io import *
-from skimage import transform
+# from skimage import transform
 import trimesh
 
 from scipy.spatial import KDTree
-import cv2
+# import cv2
 import time
-from skimage import transform
+# from skimage import transform
 import os
-import pickle
-from sklearn.neighbors import NearestNeighbors
-from scipy.spatial import Delaunay
-import numba as nb
+import logging
+# import pickle
+# from sklearn.neighbors import NearestNeighbors
+# from scipy.spatial import Delaunay
+# import numba as nb
 
 def custom_distance(x, y):
     # x为需要查询的点
@@ -64,7 +65,7 @@ import numba
 #     l = 1*l1+0*l2
 #     closest_index = np.argmin(l)
 #     return closest_index
-# @numba.jit(nopython=True) 
+@numba.jit(nopython=True) 
 def find_closest_point(direction_vectors, points):
     """_summary_
     循环版本，找最近邻点
@@ -76,19 +77,19 @@ def find_closest_point(direction_vectors, points):
         _type_: _description_
     """    
     closest_points = []
+    norm_l3=np.zeros((points.shape[0],3))
     for dir_point in direction_vectors:
         # closest_index=get_closest(points,dir_point)
         dirs=points-dir_point[:3]
         l1 = np.sqrt(dirs[:,0]*dirs[:,0]+dirs[:,1]*dirs[:,1]+dirs[:,2]*dirs[:,2])
         # l1 = np.expand_dims(l1,axis=1)#(10000,1)
-        norm_l3=np.zeros((l1.shape[0],3))
         norm_l3[:,0]=l1
         norm_l3[:,1]=l1
         norm_l3[:,2]=l1
         # norm_l3=np.repeat(l1,3,1)
         dirs1=dirs/norm_l3-dir_point[3:]
         l2=np.sqrt(dirs1[:,0]*dirs1[:,0]+dirs1[:,1]*dirs1[:,1]+dirs1[:,2]*dirs1[:,2])#方向向量 loss
-        l = 1*l1+0*l2
+        l = 0.9*l1*50+0.1*l2
         closest_index = np.argmin(l)
         closest_points.append(closest_index)
 
@@ -122,71 +123,90 @@ class find_root:
         # Compute some SDF values (negative outside);
         # takes a (num_points, 3) array, converts automatically
         
-    def getNewRoot(self,points):
+    def getNewRoot(self,points,connect=False):#目前连接以后更不好看了
         #参考论文：Modeling Hair from an RGB-D Camera
         que = np.array(points)
         dir = que[:,0]-que[:,1]
         x = np.linalg.norm(dir,axis=1)
         indices = np.where(x==0)
-        que = np.delete(que, indices[0],axis=0)
-        #根据头发丝到头皮距离对头发丝进行排序
+        que = np.delete(que, indices[0],axis=0)#重复的点
+        #计算头发丝到头皮距离l1
         sdf_multi_point = self.f(que.reshape((-1,3)))
         l1 = np.array(sdf_multi_point).reshape((-1,100))
-        l2 = np.mean(l1,axis=1)
-        sorted_indices = np.argsort(l2)
-        # Contains check
-        # origin_contained = f.contains([0, 0, 0])
-        # Misc: nearest neighbor
-        # origin_nn = f.nn([0, 0, 0])
-        que = que[sorted_indices,:]
-        query_point = que[:,0]
-        dir = que[:,0]-que[:,1]
-        # Misc: uniform surface point sampling
-        random_surface_points = self.f.sample_surface(10000)
-        
-        
-        dir = dir/np.linalg.norm(dir,axis=1)[:, np.newaxis]
-        query_point1=np.concatenate((query_point, dir), axis=1)
-        start = time.time()
-        # index=find_closest_point(query_point1,random_surface_points)#很慢
-        # end = time.time()
-        # response_time = end - start
-        # print(f"response_time = {round(response_time, 3)}")
-        #使用sdf库找最近邻
-        # tri = Delaunay(random_surface_points)
-        # vertices = tri.points
-        # simplices = np.append(tri.simplices[:,:3],tri.simplices[:,1:4],axis=0)
-        # f1 = SDF(vertices, simplices)
-        # x=f1.nn(query_point)
-        # 创建包含数据点的示例数据集
-        # 创建最近邻模型并指定自定义距离度量函数
-        # 使用scipy库找最近邻
-        # nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree', leaf_size=30,metric=custom_distance,n_jobs=10)
-        # numbers_array = np.zeros_like(random_surface_points)
-        # # # 将array和numbers_array沿着列方向连接
-        # nbrs.fit(random_surface_points)
-        
-        # dir = dir/np.linalg.norm(dir,axis=1)[:, np.newaxis]
-        
-        # query_point1=np.concatenate((query_point, dir), axis=1)
-        # # 找到每个数据点的最近邻点
-        # dist, index = nbrs.kneighbors(query_point, return_distance=False)
-        
-        # que = np.array(points)[sorted_indices,:]
-        # query_point = que[:,0]
-        kdtree = KDTree(random_surface_points)
-        # 从KD树中找到最近的点
-        dist, index = kdtree.query(query_point)
-        end = time.time()
-        response_time = end - start
-        print(f"response_time = {round(response_time, 3)}")
-        index = np.squeeze(np.array(index))
-        new_root = random_surface_points[index]
+        # 删除发根离头皮太远的发丝
+        rootlen = l1[:,0]
+        rootlen_mean = np.mean(l1[:,0])
+        len_thres = -np.abs(rootlen_mean)*6.18
+        indices=np.where(rootlen<len_thres)
+        que = np.delete(que, indices[0],axis=0)
+        l1 = np.delete(l1, indices[0],axis=0)
+        if connect:
+            #根据头发丝到头皮距离对头发丝进行排序
+            l2 = np.mean(l1,axis=1)
+            sorted_indices = np.argsort(l2)
+            # Contains check
+            # origin_contained = f.contains([0, 0, 0])
+            # Misc: nearest neighbor
+            # origin_nn = f.nn([0, 0, 0])
+            que = que[sorted_indices,:]
+            query_point = que[:,0]
+            dir = que[:,0]-que[:,1]
+            # Misc: uniform surface point sampling
+            random_surface_points = self.f.sample_surface(10000)
+            
+            
+            dir = dir/np.linalg.norm(dir,axis=1)[:, np.newaxis]
+            query_point1=np.concatenate((query_point, dir), axis=1)
+            start = time.time()
+            index=find_closest_point(query_point1,random_surface_points)#很慢
+            # end = time.time()
+            # response_time = end - start
+            # print(f"response_time = {round(response_time, 3)}")
+            #使用sdf库找最近邻
+            # tri = Delaunay(random_surface_points)
+            # vertices = tri.points
+            # simplices = np.append(tri.simplices[:,:3],tri.simplices[:,1:4],axis=0)
+            # f1 = SDF(vertices, simplices)
+            # x=f1.nn(query_point)
+            # 创建包含数据点的示例数据集
+            # 创建最近邻模型并指定自定义距离度量函数
+            # 使用scipy库找最近邻
+            # nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree', leaf_size=30,metric=custom_distance,n_jobs=10)
+            # numbers_array = np.zeros_like(random_surface_points)
+            # # # 将array和numbers_array沿着列方向连接
+            # nbrs.fit(random_surface_points)
+            
+            # dir = dir/np.linalg.norm(dir,axis=1)[:, np.newaxis]
+            
+            # query_point1=np.concatenate((query_point, dir), axis=1)
+            # # 找到每个数据点的最近邻点
+            # dist, index = nbrs.kneighbors(query_point, return_distance=False)
+            
+            # que = np.array(points)[sorted_indices,:]
+            # query_point = que[:,0]
+            # kdtree = KDTree(random_surface_points)
+            # # 从KD树中找到最近的点
+            # dist, index = kdtree.query(query_point)
+            end = time.time()
+            response_time = end - start
+            logging.info(f"connect root response_time = {round(response_time, 3)}")
+            index = np.squeeze(np.array(index))
+            new_root = random_surface_points[index]
 
-        l1=l1[sorted_indices]
-        inside_index = np.where(l1[:,0]>=1e-5) 
+            l1=l1[sorted_indices]
+            inside_index = np.where(l1[:,0]>=1e-5) #在头皮里面了
 
-        result = np.insert(que, 0, new_root, axis=1)
-        result[inside_index,0]=result[inside_index,1]
+            que = np.insert(que, 0, new_root, axis=1)
+            que[inside_index,0]=que[inside_index,1]
         
-        return result
+        return que
+if __name__=="__main__":
+    import numpy as np
+    import os
+    import scipy
+    points = scipy.io.loadmat("test_hair.mat", verify_compressed_data_integrity=False)
+    # points = np.load("test_hair.mat",allow_pickle=True)
+    rFolder = os.path.dirname(__file__)
+    froot = find_root(rFolder)
+    points = froot.getNewRoot(points.reshape((-1,100,3)))
+    

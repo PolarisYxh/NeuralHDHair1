@@ -31,6 +31,6 @@ RUN apt-get install -y python3-opengl
 RUN pip3 install scipy scikit-image trimesh==3.21.2
 RUN pip3 install pyglet pyOpenGL freetype-py tqdm PyOpenGL_accelerate
 RUN apt-get install -y libgles2-mesa-dev 
-#libosmesa6-dev freeglut3-dev  glew-utils libglew-dev
-# RUN pip3 uninstall -y pyrender libglfw3-dev libgles2-mesa-dev
+
 ENV PYTHONPATH=/app:/app/Code
+RUN pip3 install pysdf numba

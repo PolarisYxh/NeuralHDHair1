@@ -35,7 +35,7 @@ def base642cvmat(base64_data):
 class Handler(object):
     def __init__(self,rFolder,bDebug,log):
         self.log = log
-        self.log.logger.info('#########################segmentall Handler init##########################')
+        self.log.logger.info('#########################HairStrand generate Handler init##########################')
         ## TODO: put own function module
         from Code.inference import strand_inference
         ## model init
@@ -53,8 +53,8 @@ class Handler(object):
             self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
         else:
             self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[0,-13.,-0.31],dimensionality=3)
-        logging.info('segmentall handler init done.')
-        self.log.logger.info('#########################segmentall Handler init done#######################')
+        logging.info('HairStrand generate handler init done.')
+        self.log.logger.info('#########################HairStrand generate Handler init done#######################')
     def queue_callback(self, mode, json_data):
         reqCode = json_data['reqCode']
         self.log.logger.info(f'{reqCode}:#################Handler start#################.')

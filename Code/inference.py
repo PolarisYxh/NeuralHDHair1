@@ -45,7 +45,8 @@ class strand_inference:
         self.use_step=use_step
         self.opt=InferenceOptions().initialize(use_modeling=use_modeling)
         self.iter = {}
-        # self.froot = find_root(rFolder)
+        from Tools.connect_root import find_root
+        self.froot = find_root(rFolder)
         self.opt.gpu_ids=gpu_ids
         gpu_str = [str(i) for i in self.opt.gpu_ids]
         gpu_str = ','.join(gpu_str)
@@ -217,9 +218,11 @@ class strand_inference:
         # points,segments,colors = get_data(os.path.join(save_path,f"{name.split('.')[0]}.cin"),has_color=True)
         # 采样点
         # points = process_list(points,segments,self.sample_num)
-        # points = self.froot.getNewRoot(points.reshape((-1,self.sample_num,3)))
-        # sample_num=self.sample_num+1
+        connect=False
+        points = self.froot.getNewRoot(points.reshape((-1,self.sample_num,3)),connect=connect)
         sample_num=self.sample_num
+        if connect:
+            sample_num=self.sample_num+1
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
         # m=[]
         # _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
@@ -277,8 +280,8 @@ class strand_inference:
                 # img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
                 # img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
-        segments = np.array(range(0,len(segments)))*segments
-        return points,segments,colors
+        segments = np.array(range(0,len(points)))*sample_num
+        return points.reshape((-1,3)),segments,colors
         
 if __name__=="__main__":
     use_unity=True

@@ -396,10 +396,10 @@ class GrowingNetSolver(BaseSolver):
         # if high1-low1>90:
         #     random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root*2)]
         if mid>40*scale:
-            # samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==mid)][...,:3]
-            # random_points=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root)]
-            # random_points=np.append(random_points,samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root//3)],axis=0)
-            random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)]
+            samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==mid)][...,:3]
+            random_points=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root//3)]
+            random_points=np.append(random_points,samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)],axis=0)
+            # random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)]
         else:
             self.pt_num = 72*scale
             random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
@@ -543,7 +543,7 @@ class GrowingNetSolver(BaseSolver):
                 # datas=self.generate_test_data(self.opt.growInv)
             final_strand_del_by_ori,final_segment = self.get_pred_strands(datas,ori_orient=None,\
                                                                           use_rule=False)#ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),
-            short_thres = np.mean(final_segment)*0.3
+            short_thres = np.mean(final_segment)*0.284
             index=np.where(final_segment<short_thres)[0]
             start=0
             index1 = []
