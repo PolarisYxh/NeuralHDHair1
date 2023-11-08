@@ -8,6 +8,8 @@ import logging
 from flask import send_from_directory
 import cv2
 from skimage import transform
+from threading import Thread
+import requests
 def readjson(file):
     with open(file, 'r', encoding="utf-8") as load_f:
         load_dict = json.load(load_f)
@@ -32,6 +34,13 @@ def base642cvmat(base64_data):
     nparr = np.frombuffer(imgData, np.uint8)
     img_np = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
     return img_np
+class CustomError(Exception):
+    def __init__(self, ErrorInfo):
+        super().__init__(self)
+        self.errorinfo = ErrorInfo
+
+    def __str__(self):
+        return self.errorinfo
 class Handler(object):
     def __init__(self,rFolder,bDebug,log):
         self.log = log
@@ -68,6 +77,9 @@ class Handler(object):
                 response_data = {'reqCode': reqCode, 'points': points, 'segments':segments,'colors':avg_color,'error':0, 'errorInfo': '',"version":0.6}
                 logging.info(f'Handler successfully, reqCode: {reqCode}.')
                 os.system(f'echo \"Handler successfully\" >> cache/{reqCode}_service_log.log')
+            elif mode == "img_async":
+                thread = Thread(target=self.handle_img_async, kwargs=json_data)
+                thread.start()
 
         except Exception as ex:
             response_data = {'reqCode': reqCode, 'error':-1, 'errorInfo': str(ex)}
@@ -91,7 +103,27 @@ class Handler(object):
         points = np.array(points).reshape([-1,3])
         points = transform.matrix_transform(points,self.m.params)
         return points.tolist(),segments.tolist(),colors.tolist()
-
+    def handle_img_async(self,reqCode,imgFile,callback_url):
+        self.log.logger.info(f'enter async Handler, reqCode: {reqCode}.')
+        json_data = {}
+        json_data['reqCode'] = reqCode
+        json_data["callback_url"] = callback_url
+        json_data["imgFile"] = imgFile
+        try:
+            points,segments,colors = self.process(json_data)
+            avg_color = [np.mean(colors,axis=0)[[2,1,0,3]].astype('int').tolist()]
+            response_data = {'reqCode': reqCode, 'points': points, 'segments':segments,'colors':avg_color,'error':0, 'errorInfo': '',"version":0.6}
+        except CustomError as ex:
+            response_data = {'reqCode': reqCode, 'error': 1, 'errorInfo': str(ex)}
+            self.log.logger.error(f'{reqCode}:Handler failed with CustomError, {traceback.format_exc()}')
+        except Exception as ex:
+            response_data = {'reqCode': reqCode, 'error': -1, 'errorInfo': str(ex)}
+            self.log.logger.error(f'{reqCode}:Handler failed ..., {traceback.format_exc()}')
+        finally:
+            self.log.logger.info(f'{reqCode}:#####End handling#####.')
+            #requests.post(callback_url, data=json.dumps(response_data))
+            requests.post(callback_url, json=response_data)
+            return 
 
 def delete_tmp_file(reqCode, add_files_list=[]):
     cache_file_list = [f"cache/{reqCode}_service_log.log"]

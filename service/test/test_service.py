@@ -35,7 +35,7 @@ class HairStrandInterface:
     def request_HairStrand(self, reqCode, mode, imgB64, is_test=False):
         url = f"{self.url}/{mode}"
         print(url,reqCode)
-        post_data = {"reqCode": reqCode,  "imgFile": imgB64}
+        post_data = {"reqCode": reqCode,  "imgFile": imgB64, "callback_url":"127.0.0.1:50086"}
 
         if is_test:
             post_data['is_test']=is_test
@@ -50,7 +50,7 @@ class HairStrandInterface:
         else:
             print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
             return None,None,None
-img = cv2.imread("/home/yangxinhang/NeuralHDHair/data/test/paper/Screenshot from 2023-08-15 20-11-36.png")  
+img = cv2.imread("/home/yangxinhang/NeuralHDHair/data/test/paper/female_5.jpg")  
 imgB64 = cvmat2base64(img)
 hair_step = HairStrandInterface(os.path.dirname(__file__))
-step = hair_step.request_HairStrand("1.png", 'img', imgB64)
+step = hair_step.request_HairStrand("1.png", 'img_async', imgB64)

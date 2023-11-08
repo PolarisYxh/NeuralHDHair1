@@ -199,7 +199,7 @@ class HairSpatNet(BaseNetwork):
         z=z.permute(0,2,1)
         # save_image(depth_map[0],"1.png")
         depth=self.index(depth_map, xy)*(D-1)
-        self.loss_weight1=0.4+(depth-z+10.*D/96)/(20.*D/96)#z离depth越远，loss_weight越小
+        self.loss_weight1=0.5+(-torch.abs(depth-z)+10.*D/96)/(20.*D/96)#z离depth越远，loss_weight越小
         self.loss_weight1=self.loss_weight1.clamp(0.,1.)
         if sample_negative:#除了有发丝场内的点参与训练，还随机采样了场外的点
             self.loss_weight1=torch.where(depth==0,torch.zeros_like(self.loss_weight1),self.loss_weight1)

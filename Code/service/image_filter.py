@@ -229,8 +229,8 @@ class filter_crop:
         mask1=np.sum(mask1,axis=2)
         mask1[mask1>0]=255
         # mask1[(lms_3d[21][1]+lms_3d[22][1])//2:,:] = 0
-        # kernel = np.ones((5,5),np.uint8)
-        # mask1 = cv2.erode(mask1.astype('uint8'),kernel,iterations = 1)
+        kernel = np.ones((15,15),np.uint8)
+        mask1 = cv2.erode(mask1.astype('uint8'),kernel,iterations = 1)
         hair_area1 = np.where(mask1>0)
         # cv2.imwrite(image_name.split('.')[0]+"_mask.png",mask1)
         # 找中位的点,先找到横向的中间，再找到纵向的中间
@@ -241,7 +241,10 @@ class filter_crop:
         y=sorted_points[sorted_points[:,1]==m_y]
         sorted_indices = np.argsort(y[:, 0])
         sorted_points = y[sorted_indices]
-        hair_point1 = sorted_points[len(sorted_points)//2][[1,0]]
+        subarrays = np.split(sorted_points[:,0], np.where(np.diff(sorted_points[:,0]) != 1)[0] + 1)#分段连续数组
+        max_subarray = max(subarrays, key=len)
+        m_x=max_subarray[len(max_subarray)//2]
+        hair_point1 = [m_y,m_x]
         
         imgB64 = cvmat2base64(framesForHair[0])#framesForHair[0] 640,640
         aligned = cv2.warpAffine(framesForHair[0],
@@ -251,6 +254,8 @@ class filter_crop:
                                                                                     lms_3d[33,:2]]),[1,0,0])
         if masks[tuple(lms_3d[27,[1,0]].astype('int').T)]==True:
             masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[30,:2]]),[1,0])
+        if masks[tuple(lms_3d[27,[1,0]].astype('int').T)]==True:
+            masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[27,:2]]),[1,0])
         parsing = np.zeros_like(framesForHair[0][:,:,0])
         parsing[masks] = 255
         save_parsing = np.zeros_like(framesForHair[0])

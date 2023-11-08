@@ -57,7 +57,7 @@ class GrowingNetSolver(BaseSolver):
             # self.roots = load_root(os.path.join(self.opt.current_path,"data/map_roots1024.data"))
             self.roots = scipy.io.loadmat(os.path.join(self.opt.current_path,"roots3.mat"), \
                         verify_compressed_data_integrity=False)['roots']
-            # self.roots = self.roots[np.random.randint(0,self.roots.shape[0]-1,size=self.opt.num_root)]
+            self.roots = self.roots[np.random.randint(0,self.roots.shape[0]-1,size=self.opt.num_root)]
             self.roots=transform(self.roots,scale=self.height//128)#[:,[2,1,0]]
 
     def create_optimizers(self,opt):
@@ -405,9 +405,10 @@ class GrowingNetSolver(BaseSolver):
             random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
         random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]
         random_points=random_points[...,None,:]
+        random_points=self.roots[:,:][None,:,None,:]
         
         self.gt_orientation=torch.from_numpy(self.gt_orientation)
-        random_points=torch.from_numpy(random_points)
+        random_points=torch.from_numpy(np.copy(random_points))
         random_points=torch.reshape(random_points,(len(self.opt.gpu_ids),-1,1,3))
 
         return_list={
@@ -611,18 +612,4 @@ class GrowingNetSolver(BaseSolver):
             self.learning_rate=self.learning_rate/2
         for params in self.optimizer_GN.param_groups:
             params['lr']=self.learning_rate
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

@@ -13,7 +13,7 @@ class Local_Filter(BaseNetwork):
         parser.add_argument('--hg_depth', type=int, default=4)
         parser.add_argument('--hg_down', type=str, default='avg_pool')
         use_add_info = True
-        use_ori = False
+        use_ori = True
         if use_add_info:
             parser.add_argument('--use_add_info', type=bool, default=use_add_info)
             parser.add_argument('--use_ori', type=bool, default=use_ori)
@@ -174,7 +174,10 @@ class Local_Filter(BaseNetwork):
         # with autocast(dtype=torch.float16):
         #     points = points.to(torch.float16)
         #     strand2D = strand2D.to(torch.float16)
-        self.im_feat_list,_=self.image_filter(strand2D)
+        if self.opt.use_ori == True:
+            self.im_feat_list,_=self.image_filter(image)
+        else:
+            self.im_feat_list,_=self.image_filter(strand2D)
         n=points.size(1)//step+1
         for i in range(n):
             start=step*i

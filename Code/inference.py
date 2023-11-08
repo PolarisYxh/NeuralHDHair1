@@ -45,8 +45,10 @@ class strand_inference:
         self.use_step=use_step
         self.opt=InferenceOptions().initialize(use_modeling=use_modeling)
         self.iter = {}
-        from Tools.connect_root import find_root
-        self.froot = find_root(rFolder)
+        self.delete_far = True
+        if self.delete_far:
+            from Tools.connect_root import find_root
+            self.froot = find_root(rFolder)
         self.opt.gpu_ids=gpu_ids
         gpu_str = [str(i) for i in self.opt.gpu_ids]
         gpu_str = ','.join(gpu_str)
@@ -88,9 +90,10 @@ class strand_inference:
             self.opt.blur_ori = False
             self.opt.no_use_depth = True
             self.opt.no_use_pretrain = True
-            # self.opt.pretrain_path="2023-07-31_rot_depth1/checkpoint/HairModelingGlobal_25456.pth"
-            self.opt.which_iter=295840 #299280 295840
-            self.opt.check_name="2023-07-31_rot_depth1"
+            # self.opt.which_iter=295840 #299280 295840
+            # self.opt.check_name="2023-07-31_rot_depth1"
+            self.opt.which_iter=16512 # ori: LocalFilter line 16
+            self.opt.check_name="2023-10-26_addori"
             self.ModelingHD_solver = HairModelingHDSolver()
             self.ModelingHD_solver.initialize(self.opt)
         else:
@@ -149,18 +152,14 @@ class strand_inference:
             ori2D,bust,color,rgb_image,revert_rot = self.img_filter.request_HairFilter(name,'img',imgB64)
         # kernel = np.ones((3,3),np.uint8)
         # ori2D = cv2.erode(ori2D,kernel,iterations=1)
-        if self.use_step:
-            cv2.imwrite(f"{self.opt.test_file}_ori.png",(ori2D*255).astype('uint8'))
-            cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-            cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
-        else:
-            cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
-            cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-            cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
-        # cv2.imshow('1',ori2D)
-        # cv2.imshow('2',bust)
-        # cv2.imshow('3',rgb_image)
-        # cv2.waitKey()
+        # if self.use_step:
+        #     cv2.imwrite(f"{self.opt.test_file}_ori.png",(ori2D*255).astype('uint8'))
+        #     cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+        #     cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
+        # else:
+        #     cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
+        #     cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+        #     cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
         if self.opt.input_nc==3 or self.use_modeling:
             if not self.use_strand:
                 mask = np.zeros((ori2D.shape[0],ori2D.shape[1]))
@@ -218,14 +217,15 @@ class strand_inference:
         # points,segments,colors = get_data(os.path.join(save_path,f"{name.split('.')[0]}.cin"),has_color=True)
         # 采样点
         # points = process_list(points,segments,self.sample_num)
-        connect=False
-        points = self.froot.getNewRoot(points.reshape((-1,self.sample_num,3)),connect=connect)
         sample_num=self.sample_num
-        if connect:
-            sample_num=self.sample_num+1
+        if self.delete_far:
+            connect=False
+            points = self.froot.getNewRoot(points.reshape((-1,self.sample_num,3)),connect=connect)
+            if connect:
+                sample_num=self.sample_num+1
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
         # m=[]
-        # _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
+        _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
         # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_py.png"),img2)
         # colors[:] = color
         # _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
