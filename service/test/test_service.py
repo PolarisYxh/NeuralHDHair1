@@ -53,4 +53,4 @@ class HairStrandInterface:
 img = cv2.imread("/home/yangxinhang/NeuralHDHair/data/test/paper/female_5.jpg")  
 imgB64 = cvmat2base64(img)
 hair_step = HairStrandInterface(os.path.dirname(__file__))
-step = hair_step.request_HairStrand("1.png", 'img_async', imgB64)
+step = hair_step.request_HairStrand("1.png", 'img', imgB64)

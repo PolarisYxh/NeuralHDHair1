@@ -18,22 +18,23 @@ import trimesh
 from Tools.utils import timeCost
 from util import cvmat2base64
 class strand_inference:
-    def __init__(self,rFolder,HairFilterLocal=False,use_modeling=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[]) -> None:
+    def __init__(self,rFolder,HairFilterLocal=False,use_modeling=False,use_ori_addinfo=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[]) -> None:
         """_summary_
 
         Args:
             rFolder (_type_): _description_
             use_step (bool, optional): 网络直接生成分割图和方向图，151 docker restart segmentall-server. Defaults to True.
-            use_depth (bool, optional): 需要使用归一化后的头发深度图作为输入. Defaults to False.
+            use_ori_addinfo (bool, optional): 使用方向图作为ModelingHD网络的输入，否则使用归一化后的头发深度图作为输入. Defaults to False.
             use_strand (bool, optional): segmentanything网络直接生成分割图,本地生成方向图，151 docker restart segmentall-server. Defaults to False.
             Bidirectional_growth (bool, optional): _description_. Defaults to False.
             use_modeling:表示要使用到 输入深度信息的Modeling网络
         """   
         self.use_strand = use_strand
-        if use_modeling:
+        if use_modeling and not use_ori_addinfo:
             use_depth=True   
         else:
             use_depth=False
+        self.use_depth = use_depth
         self.HairFilterLocal = HairFilterLocal 
         if  self.HairFilterLocal:
             self.img_filter = filter_crop(os.path.dirname(__file__),\
@@ -45,7 +46,7 @@ class strand_inference:
         self.use_step=use_step
         self.opt=InferenceOptions().initialize(use_modeling=use_modeling)
         self.iter = {}
-        self.delete_far = True
+        self.delete_far = False
         if self.delete_far:
             from Tools.connect_root import find_root
             self.froot = find_root(rFolder)
@@ -90,10 +91,14 @@ class strand_inference:
             self.opt.blur_ori = False
             self.opt.no_use_depth = True
             self.opt.no_use_pretrain = True
-            # self.opt.which_iter=295840 #299280 295840
-            # self.opt.check_name="2023-07-31_rot_depth1"
-            self.opt.which_iter=16512 # ori: LocalFilter line 16
-            self.opt.check_name="2023-10-26_addori"
+            if use_ori_addinfo:
+                self.opt.which_iter=16512 # ori: LocalFilter line 16
+                self.opt.check_name="2023-10-26_addori"
+            else:
+                self.opt.which_iter=295840 #299280 295840
+                self.opt.check_name="2023-07-31_rot_depth1"
+                
+            self.opt.use_ori_addinfo=use_ori_addinfo
             self.ModelingHD_solver = HairModelingHDSolver()
             self.ModelingHD_solver.initialize(self.opt)
         else:
@@ -115,7 +120,7 @@ class strand_inference:
             self.opt.model_name="HairSpatNet"
             self.opt.save_root="checkpoints/HairSpatNet"
             # self.opt.which_iter=1640000#2023-04-17_bust,1640000 utils 1539 line color5.png，使用color5训练的;input_nc =2
-            # self.opt.which_iter=885000#2023-06-06_bust_rot, utils 1539 line body_0.png，使用body_0训练的;input_nc =2
+            # self.opt.which_iter=85000#2023-06-06_bust_rot, utils 1539 line body_0.png，使用body_0训练的;input_nc =2
             
             # if use_depth:
             #     self.opt.input_nc = 3
@@ -160,7 +165,8 @@ class strand_inference:
         #     cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
         #     cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
         #     cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
-        if self.opt.input_nc==3 or self.use_modeling:
+        depth_norm = None
+        if self.opt.input_nc==3 or self.use_depth:
             if not self.use_strand:
                 mask = np.zeros((ori2D.shape[0],ori2D.shape[1]))
                 parse = ori2D[:, :, 2]
@@ -221,11 +227,12 @@ class strand_inference:
         if self.delete_far:
             connect=False
             points = self.froot.getNewRoot(points.reshape((-1,self.sample_num,3)),connect=connect)
+            points = np.array(points).reshape([-1,3])
             if connect:
                 sample_num=self.sample_num+1
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
         # m=[]
-        _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
+        # _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
         # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_py.png"),img2)
         # colors[:] = color
         # _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
@@ -280,7 +287,7 @@ class strand_inference:
                 # img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
                 # img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
-        segments = np.array(range(0,len(points)))*sample_num
+        segments = np.array(range(0,len(points)//100))*sample_num
         return points.reshape((-1,3)),segments,colors
         
 if __name__=="__main__":

@@ -361,7 +361,7 @@ if __name__ == "__main__":
     )
     logging.info("test get_face_info start")
     insight_face_info = get_face_info(workingDir,False)
-    frame = workingDir + "../test/data/000028.jpg"
+    frame = "/home/yangxinhang/NeuralHDHair/data/test/paper/female_1.jpg"
     frame = cv2.imread(frame)
     faces, frames, framesForGender = insight_face_info.get_faces(frame,"000028")
     logging.info(f"test get_face_info end.detect {len(faces)} face ")

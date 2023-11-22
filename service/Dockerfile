@@ -1,4 +1,4 @@
-from step-base:latest
+from hair-base:latest
 WORKDIR "/app"
 COPY . .
 #RUN apt install libsqlite3-dev

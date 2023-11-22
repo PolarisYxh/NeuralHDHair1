@@ -12,18 +12,19 @@ class Local_Filter(BaseNetwork):
         parser.add_argument('--num_stack', type=int, default=2)
         parser.add_argument('--hg_depth', type=int, default=4)
         parser.add_argument('--hg_down', type=str, default='avg_pool')
-        use_add_info = True
-        use_ori = True
-        if use_add_info:
-            parser.add_argument('--use_add_info', type=bool, default=use_add_info)
-            parser.add_argument('--use_ori', type=bool, default=use_ori)
-            parser.add_argument('--mlp_channels_Occ', type=list, default=[292, 512,  512,256,256, 128, 1])
-            parser.add_argument('--mlp_channels_Ori', type=list, default=[292, 512,  512,256,256, 128, 3])
-        else:
-            parser.add_argument('--use_ori', type=bool, default=False)
-            parser.add_argument('--use_add_info', type=bool, default=False)
-            parser.add_argument('--mlp_channels_Occ', type=list, default=[260, 512,  512,256,256, 128, 1])
-            parser.add_argument('--mlp_channels_Ori', type=list, default=[260, 512,  512,256,256, 128, 3])
+        # use_add_info = True
+        # use_ori_addinfo = False
+        # if use_add_info:
+        #     parser.add_argument('--use_add_info', type=bool, default=use_add_info)
+        #     parser.add_argument('--use_ori_addinfo', type=bool, default=use_ori_addinfo)
+        #     parser.add_argument('--mlp_channels_Occ', type=list, default=[292, 512,  512,256,256, 128, 1])
+        #     parser.add_argument('--mlp_channels_Ori', type=list, default=[292, 512,  512,256,256, 128, 3])
+        # else:
+        parser.add_argument('--use_ori_addinfo', type=bool, default=False)
+        parser.add_argument('--use_add_info', type=bool, default=True)
+        parser.add_argument('--mlp_channels_Occ', type=list, default=[292, 512,  512,256,256, 128, 1])
+        parser.add_argument('--mlp_channels_Ori', type=list, default=[292, 512,  512,256,256, 128, 3])
+        
         # parser.add_argument('--mlp_ori_channels',type=list,default=[257,1024,512,256,128,3])
         parser.add_argument('--mlp_norm', default=None)
         parser.add_argument('--mlp_res_layers', type=list, default=[2, 3,4])
@@ -44,7 +45,7 @@ class Local_Filter(BaseNetwork):
         self.hg_depth=opt.hg_depth
         self.opt = opt
         self.in_cha=1
-        if opt.info_mode=='amb' or opt.use_ori:
+        if opt.info_mode=='amb' or opt.use_ori_addinfo:
             self.in_cha=2
         self.hg_dim=opt.hg_dim
         self.hg_norm=opt.hg_norm
@@ -133,7 +134,7 @@ class Local_Filter(BaseNetwork):
 
             # print(strand2D.size())
             with autocast(dtype=torch.float16):
-                if self.opt.use_add_info and self.opt.use_ori:
+                if self.opt.use_add_info and self.opt.use_ori_addinfo:
                     self.im_feat_list,_ = self.image_filter(image)
                 elif self.opt.use_add_info:
                     self.im_feat_list,_ = self.image_filter(strand2D)
@@ -150,7 +151,7 @@ class Local_Filter(BaseNetwork):
         # return out_ori_low,self.out_occ,out_ori_low,out_occ_low,self.loss_local,self.loss_global
 
 
-    def test(self,image,strand2D,Ori2D,net_global,resolution,step=100000):
+    def test(self,image,depth,Ori2D,net_global,resolution,step=100000):
         D, H, W = resolution
         self.out_ori = torch.zeros(1, 3, D, H, W).cuda()
         self.out_occ = torch.zeros(1, 1, D, H, W).cuda()
@@ -173,11 +174,11 @@ class Local_Filter(BaseNetwork):
         points=net_global.test_points
         # with autocast(dtype=torch.float16):
         #     points = points.to(torch.float16)
-        #     strand2D = strand2D.to(torch.float16)
-        if self.opt.use_ori == True:
+        #     depth = depth.to(torch.float16)
+        if self.opt.use_ori_addinfo == True:
             self.im_feat_list,_=self.image_filter(image)
         else:
-            self.im_feat_list,_=self.image_filter(strand2D)
+            self.im_feat_list,_=self.image_filter(depth)
         n=points.size(1)//step+1
         for i in range(n):
             start=step*i

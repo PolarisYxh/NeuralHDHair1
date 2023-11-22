@@ -56,7 +56,8 @@ class Handler(object):
         #     os.environ['CUDA_VISIBLE_DEVICES'] =gpu_str
         self.app = strand_inference(os.path.join(os.path.dirname(__file__),"../"),use_modeling=load_dict['use_modeling'],\
                                     use_hd=load_dict['use_hd'],use_step=load_dict['use_step'],\
-                                    use_strand=load_dict['use_strand'],Bidirectional_growth=True,gpu_ids=load_dict['gpus'])
+                                    use_ori_addinfo=load_dict['use_ori_addinfo'], use_strand=load_dict['use_strand'],\
+                                    Bidirectional_growth=True,gpu_ids=load_dict['gpus'], HairFilterLocal=True)
         self.cache_path = os.path.join(rFolder,'cache')
         if not load_dict['use_modeling']:
             self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右

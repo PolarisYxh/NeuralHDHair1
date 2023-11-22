@@ -39,20 +39,19 @@ def apply_matrix(v, matrix):
 
 class filter_crop:
     def __init__(self,rFolder,saveFolder="",use_step=True,use_depth=False,use_strand=False) -> None:
-        # use_step (bool, optional): 网络直接生成分割图和方向图，151 docker restart segmentall-server. Defaults to True.
+        # use_step (bool, optional): 使用自己训练的网络得到初步的身体分割图和头发方向图，否则使用faceparsing分割得到身体和头发分割图，151 docker restart segmentall-server. Defaults to True.
         # use_depth (bool, optional): 需要使用归一化后的头发深度图作为输入. Defaults to False.
         # use_strand (bool, optional): segmentanything网络直接生成分割图,本地生成方向图，151 docker restart segmentall-server. Defaults to False.
         self.rFolder = rFolder
         self.conf= readjson(os.path.join(rFolder,"service/config.json"))
         self.saveFolder = saveFolder
-        # self.face_seg = faceParsingInterface(rFolder)
-        self.hair_step = step_inference(os.path.join(rFolder,".."))
+
         self.segall = segmentAllInterface(rFolder)
         self.use_step=use_step
-        # if use_step:#使用unet 分割及获得方向图
-        #     self.hair_step = step_inference(os.path.join(rFolder,".."))
-        # else:
-        #     self.segall = segmentAllInterface(rFolder)
+        if use_step:#使用unet 分割及获得方向图
+            self.hair_step = step_inference(os.path.join(rFolder,".."))
+        else:
+            self.face_seg = faceParsingInterface(rFolder)
         self.use_strand = use_strand#使用hairstep标准流程，用sam分割及hairstep strand生成方向图
         if use_strand:
             self.strandmodel = strandModel().cuda()
@@ -93,7 +92,7 @@ class filter_crop:
         #neuralhd R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
         self.use_gt=use_gt
         crop_image,bust,img1 = self.get_hair_seg(img,gender,image_name)
-        if self.use_step or self.use_gt:
+        if self.use_gt:
             avg_color,image=self.get_hair_avgcolor1(img1,crop_image)
             
             # crop_image[np.where(parse<0.8)]=[0,0,0]
@@ -214,21 +213,49 @@ class filter_crop:
         tp = 'affine'
         tform = trans.estimate_transform(tp, lms_3d[:27,:2], self.mean_lms[:27,:2])
         M = tform.params[0:2]
-        # if self.use_step and not self.use_gt:
-            # s = framesForHair[0].shape
-            # framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
-        step = self.hair_step.inference(framesForHair[0])
-        step = cv2.resize(step,(640,640))
-        step_align = cv2.warpAffine(step,
-                            M, (640, 640),
-                            borderValue=0.0)
-        #使用sam分割，需要先找到头发的点位
-        parse = step[:, :, 2]
-        mask1=step[:, :, [0, 1]]
-        mask1[np.where(parse<0.8)]=[0,0]
-        mask1=np.sum(mask1,axis=2)
-        mask1[mask1>0]=255
-        # mask1[(lms_3d[21][1]+lms_3d[22][1])//2:,:] = 0
+        if self.use_step:
+            framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
+            step = self.hair_step.inference(framesForHair[0])
+            step = cv2.resize(step,(640,640))
+            step_align = cv2.warpAffine(step,
+                                M, (640, 640),
+                                borderValue=0.0)
+            #身体分割图
+            body_parse = step_align[:, :, 2]
+            mask1=step_align[:, :, [0, 1]]
+            mask1[np.where(body_parse<0.8)]=[0,0]
+            mask1=np.sum(mask1,axis=2)
+            body_parse[mask1>0]=0
+            body_parse = np.clip(body_parse,0,1)*255
+            
+            #mask1:头发分割图，使用sam分割，需要先找到头发的点位
+            parse = step[:, :, 2]
+            mask1=step[:, :, [0, 1]]
+            mask1[np.where(parse<0.8)]=[0,0]
+            mask1=np.sum(mask1,axis=2)
+            mask1[mask1>0]=255
+            # mask1[(lms_3d[21][1]+lms_3d[22][1])//2:,:] = 0
+        else:
+            framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
+            imgB64 = cvmat2base64(framesForHair[0])
+            detectedFacePart, parsing = self.face_seg.request_faceParsing(image_name, 'img', imgB64)
+            #身体分割图
+            body_parse = np.zeros_like(parsing.astype('uint8'))
+            for part in ["cloth","neck","necklace"]:
+                if part in detectedFacePart:
+                    body_parse[(parsing.astype('uint8')[:, :] == detectedFacePart[part])] = 250
+            kernel = np.ones((5,5),np.uint8)
+            body_parse = cv2.erode(body_parse.astype('uint8'),kernel,iterations = 1)
+            body_parse = cv2.dilate(body_parse.astype('uint8'),kernel,iterations = 1)
+            body_parse = cv2.warpAffine(body_parse,
+                                M, (640, 640),
+                                borderValue=0.0)
+            #mask1:头发分割图
+            mask1 = parsing.astype('uint8').copy()
+            mask1[mask1[:, :] != detectedFacePart["hair"]] = 0  #,1,0
+            mask1[mask1[:, :] == detectedFacePart["hair"]] = 255
+        # cv2.imwrite(image_name.split('.')[0]+"_mask.png",mask1)
+        # cv2.imwrite(image_name.split('.')[0]+"_mask1.png",body_parse)
         kernel = np.ones((15,15),np.uint8)
         mask1 = cv2.erode(mask1.astype('uint8'),kernel,iterations = 1)
         hair_area1 = np.where(mask1>0)
@@ -276,15 +303,8 @@ class filter_crop:
         # get warp to align standard shoulder and people's shoulder
         
         if np.max(hair_area[0])>self.mean_lms[8,1] and np.max(aligned_mask[tuple(self.shoulder_lms[:,[1,0]].T.astype('int'))])==0:#头发长于下巴且短于肩膀，需要在尺度上对齐肩膀和头发
-            parse = step_align[:, :, 2]
-            mask1=step_align[:, :, [0, 1]]
-            mask1[np.where(parse<0.8)]=[0,0]
-            mask1=np.sum(mask1,axis=2)
-            parse[mask1>0]=0
-
-            parse = np.clip(parse,0,1)*255
             # 这里parse是脸和身体的分割图
-            _, thresh = cv2.threshold(parse, 127, 255, cv2.THRESH_BINARY)
+            _, thresh = cv2.threshold(body_parse, 127, 255, cv2.THRESH_BINARY)
             # Define a structuring element
             kernel = np.ones((5,5), np.uint8)
             # Apply erosion on the image
@@ -300,7 +320,7 @@ class filter_crop:
             # Approximate the contour
             approx = cv2.approxPolyDP(contour, epsilon, True)
             # Draw the approximated contour on the original image
-            crop_image1=cv2.drawContours((step_align*255).astype('uint8'), [approx], -1, (0, 255, 0), 1)
+            # crop_image1=cv2.drawContours(body_parse.astype('uint8'), [approx], -1, 150, 1)
             # Display the image
             # cv2.imwrite('lms.png', crop_image1)
             

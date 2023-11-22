@@ -13,22 +13,14 @@
         "cache_path":"cache/",
         "url0":"http://0.0.0.0:40087",
         "url0":"http://10.10.52.151:40087",
-        "url0":"http://speech.ths8.com:6080/vc_insightface",
-        "url":"https://alg.aicubes.cn/vc_insightface"
+        "url":"http://speech.ths8.com:6080/vc_insightface",
+        "url0":"https://alg.aicubes.cn/vc_insightface"
     },
     "segmentAll":
     {
         "cache_path":"cache/",
         "url0":"http://0.0.0.0:50083",
         "url":"http://10.10.52.151:50083",
-        "url0":"http://speech.ths8.com:6080/vc_insightface",
-        "url0":"https://alg.aicubes.cn/vc_insightface"
-    },
-    "HairStep":
-    {
-        "cache_path":"cache/",
-        "url0":"http://0.0.0.0:50083",
-        "url":"http://10.10.52.151:50084",
         "url0":"http://speech.ths8.com:6080/vc_insightface",
         "url0":"https://alg.aicubes.cn/vc_insightface"
     },

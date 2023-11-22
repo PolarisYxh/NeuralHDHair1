@@ -32,6 +32,5 @@ RUN pip3 install scipy scikit-image trimesh==3.21.2
 RUN pip3 install pyglet pyOpenGL freetype-py tqdm PyOpenGL_accelerate
 RUN apt-get install -y libgles2-mesa-dev 
 
-ENV PYTHONPATH=/app/pytorch_hair_segmentation:/app:/app/Code
-RUN pip3 install pysdf numba git+https://gitee.com/taitale/segment-anything.git
-
+ENV PYTHONPATH=/app:/app/Code
+RUN pip3 install pysdf numba

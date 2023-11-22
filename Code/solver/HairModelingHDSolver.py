@@ -200,15 +200,17 @@ class HairModelingHDSolver(BaseSolver):
             image = image.type(torch.float)
             Ori2D = Ori2D.type(torch.float)
             # save_image(image,"1.png")
-            norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
+            if not self.opt.use_ori_addinfo:
+                norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
+                norm_depth = norm_depth.cuda() if self.use_gpu() else norm_depth
             if self.use_gpu():
                 image = image.cuda()
                 Ori2D = Ori2D.cuda()
-                norm_depth = norm_depth.cuda()
-            if image.shape[1]==2:
-                save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],f"{name}.png")
-            else:
-                save_image(image,f"{name}.png")
+                
+            # if image.shape[1]==2:
+            #     save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],f"{name}.png")
+            # else:
+            #     save_image(image,f"{name}.png")
             #image:带bust,strand2D:depth,Ori2D:不带bust的方向图,net_global,resolution,step=100000
             out_ori, out_occ,_,_ = self.net_local.test(image,norm_depth,Ori2D,self.net_global,self.opt.resolution)
                 

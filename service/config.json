@@ -12,12 +12,14 @@
     "device":"cuda",
     "//":"device为cuda时，更改使用的gpu编号，device为cpu不影响",
     "gpus":[3],
-    "//":"使用自研u-net作为分割算法",
+    "//":"使用自己训练的网络得到初步的身体分割图和头发方向图，否则使用faceparsing分割得到身体和头发分割图",
     "use_step":false,
-    "//":"使用segment anything作为分割算法,目前都用到了",
+    "//":"使用segment anything作为精确分割算法,必选true",
     "use_strand":true,
     "//":"使用第三个modeling网络,不管use_hd,voxel_size 都是 192,256,256",
     "use_modeling":true,
-    "//":"使用voxel_size = 192,256,256",
+    "//":"use_ori_addinfo (bool, optional): 使用方向图作为ModelingHD网络的输入，否则使用归一化后的头发深度图作为输入. Defaults to False.",
+    "use_ori_addinfo":true,
+    "//":"使用voxel_size = 192,256,256，use_modeling时固定为192,256,256",
     "use_hd":false
 }
