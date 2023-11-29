@@ -17,6 +17,7 @@ from dataload.render_strand import render_strand
 import trimesh
 from Tools.utils import timeCost
 from util import cvmat2base64
+import logging
 class strand_inference:
     def __init__(self,rFolder,HairFilterLocal=False,use_modeling=False,use_ori_addinfo=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[]) -> None:
         """_summary_
@@ -68,7 +69,7 @@ class strand_inference:
             self.iter[self.opt.model_name] = self.opt.which_iter
             self.opt.check_name="2023-05-11_bust_prev3"
             self.opt.condition=True
-            self.opt.num_root = 12000
+            self.opt.num_root = 9000
             self.opt.Bidirectional_growth = Bidirectional_growth
             self.opt.growInv=False
             self.growing_solver = GrowingNetSolver()
@@ -150,11 +151,13 @@ class strand_inference:
         if use_unity:
             reset()
         # set_camera()
+        logging.info("enter strand2d")
         if  self.HairFilterLocal:
             ori2D,bust,color,rgb_image,revert_rot = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
         else:
             imgB64 = cvmat2base64(image)
             ori2D,bust,color,rgb_image,revert_rot = self.img_filter.request_HairFilter(name,'img',imgB64)
+        logging.info("leave strand2d,enter strand3d")
         # kernel = np.ones((3,3),np.uint8)
         # ori2D = cv2.erode(ori2D,kernel,iterations=1)
         # if self.use_step:

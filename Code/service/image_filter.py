@@ -211,7 +211,7 @@ class filter_crop:
         shoulder_lms = np.array(self.conf["shoulder_lms"])
         self.shoulder_lms = apply_matrix(self.body.vertices[shoulder_lms,:], m[0])
         tp = 'affine'
-        tform = trans.estimate_transform(tp, lms_3d[:27,:2], self.mean_lms[:27,:2])
+        tform = trans.estimate_transform(tp, lms_3d[:17,:2], self.mean_lms[:17,:2])
         M = tform.params[0:2]
         if self.use_step:
             framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
@@ -330,9 +330,9 @@ class filter_crop:
             dist, index1 = kdtree.query(self.shoulder_lms[[3,4],:2])
             idx = [0,16] #0,16,19,
             real_lms = np.append(approx[:,0,:][index1],self.mean_lms[idx,:2],axis=0)
-            # drawLms((step_align*255).astype('uint8'),real_lms.astype('int'))
+            # drawLms((aligned*255).astype('uint8'),real_lms.astype('int'))
             target_lms = np.append(self.shoulder_lms[[3,4],:2],self.mean_lms[idx,:2],axis=0)
-            # drawLms((step_align*255).astype('uint8'),target_lms.astype('int'),name="lms1.png")
+            # drawLms((aligned*255).astype('uint8'),target_lms.astype('int'),name="lms1.png")
             tform = trans.estimate_transform(tp, real_lms, target_lms)
             M1 = tform.params[0:2]
             M1[0,0]=1#左右方向尺度不变，仅拉长头发到肩膀
@@ -345,6 +345,9 @@ class filter_crop:
                                 borderValue=0.0)
         # for debug
         # bust1 = cv2.resize(bust,(640,640))
+        # aligned_parsing = cv2.warpAffine(aligned_parsing,
+        #                         M1, (640, 640),
+        #                         borderValue=0.0)
         # aligned[(bust1>0)&(aligned_parsing==0)]=[0,0,255]
         # cv2.imwrite(image_name.split('.')[0]+"_parse.png",aligned)
         return aligned,bust,framesForHair[0]

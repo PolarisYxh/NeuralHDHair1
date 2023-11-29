@@ -41,16 +41,16 @@ class HairStrandInterface:
             post_data['is_test']=is_test
         res = requests.post(url=url, data=json.dumps(post_data))
         result = json.loads(res.content)
-        if (result["error"] == 0):
-            # parts = result["detected_part"]
-            hair_step = result['step']
-            os.makedirs(f"{self.rfolder}/cache",exist_ok=True)
-            # parsing = base642cvmat(parsing)
-            return np.array(hair_step)
-        else:
-            print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
-            return None,None,None
-img = cv2.imread("/home/yangxinhang/NeuralHDHair/data/test/paper/female_5.jpg")  
+        # if (result["error"] == 0):
+        #     # parts = result["detected_part"]
+        #     hair_step = result['step']
+        #     os.makedirs(f"{self.rfolder}/cache",exist_ok=True)
+        #     # parsing = base642cvmat(parsing)
+        #     return np.array(hair_step)
+        # else:
+        #     print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
+        #     return None,None,None
+img = cv2.imread("/home/yangxinhang/NeuralHDHair/data/test/paper/9b9b029e-927a-481a-9dce-99cbcf551a6e.jpg")  
 imgB64 = cvmat2base64(img)
 hair_step = HairStrandInterface(os.path.dirname(__file__))
-step = hair_step.request_HairStrand("1.png", 'img', imgB64)
+step = hair_step.request_HairStrand("1.png", 'img_async', imgB64)

@@ -381,12 +381,12 @@ class GrowingNetSolver(BaseSolver):
         samle_voxel_index=np.array(samle_voxel_index)
         samle_voxel_index=samle_voxel_index.transpose(1,0)
         
-        back = np.min(samle_voxel_index[:,0], axis=0)#前后
-        front = np.max(samle_voxel_index[:,0], axis=0)
+        # back = np.min(samle_voxel_index[:,0], axis=0)#前后
+        # front = np.max(samle_voxel_index[:,0], axis=0)
         low1 = np.min(samle_voxel_index[:,1], axis=0)#上下
         high1 = np.max(samle_voxel_index[:,1], axis=0)
-        left = np.min(samle_voxel_index[:,2], axis=0)#左右
-        right = np.max(samle_voxel_index[:,2], axis=0)
+        # left = np.min(samle_voxel_index[:,2], axis=0)#左右
+        # right = np.max(samle_voxel_index[:,2], axis=0)
         mid = (low1+high1)//2
         scale = max(occ.shape)//128
         self.pt_num = int((high1-low1)*1.5)
@@ -405,7 +405,7 @@ class GrowingNetSolver(BaseSolver):
             random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
         random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]
         random_points=random_points[...,None,:]
-        random_points=self.roots[:,:][None,:,None,:]
+        # random_points=self.roots[:,:][None,:,None,:]
         
         self.gt_orientation=torch.from_numpy(self.gt_orientation)
         random_points=torch.from_numpy(np.copy(random_points))

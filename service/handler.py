@@ -10,6 +10,7 @@ import cv2
 from skimage import transform
 from threading import Thread
 import requests
+import queue
 def readjson(file):
     with open(file, 'r', encoding="utf-8") as load_f:
         load_dict = json.load(load_f)
@@ -63,8 +64,42 @@ class Handler(object):
             self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
         else:
             self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[0,-13.,-0.31],dimensionality=3)
+        self.is_running = True
+        self.request_queue = queue.Queue()
+        self.worker_thread = Thread(target=self.process_queue)
+        self.worker_thread.start()
         logging.info('HairStrand generate handler init done.')
         self.log.logger.info('#########################HairStrand generate Handler init done#######################')
+    def process_queue(self):
+        reqCode = ""
+        callback_url=""
+        while self.is_running:
+            try:
+                json_data = self.request_queue.get()
+                self.request_queue.task_done()
+                reqCode = json_data['reqCode']
+                # 在这里处理response_data，例如返回给客户端
+                callback_url = json_data["callback_url"]
+                logging.info(f'{reqCode}:#####queue start handling {reqCode}#####.')
+                points,segments,colors = self.process(json_data)
+                avg_color = [np.mean(colors,axis=0)[[2,1,0,3]].astype('int').tolist()]
+                response_data = {'reqCode': json_data['reqCode'], 'points': points, 'segments':segments,'colors':avg_color,'error':0, 'errorInfo': '',"version":0.6}
+                
+            except CustomError as ex:
+                response_data = {'reqCode': reqCode, 'error': -1, 'errorInfo': str(ex)}
+                logging.error(f'{reqCode}:Handler failed with CustomError, {traceback.format_exc()}')
+            except Exception as ex:
+                response_data = {'reqCode': reqCode, 'error': -1, 'errorInfo': str(ex)}
+                logging.error(f'{reqCode}:Handler failed ..., {traceback.format_exc()}')
+            finally:
+                logging.info(f'{reqCode}:#####End handling,send to {callback_url}#####.')
+            try:
+                requests.post(callback_url, json=response_data)
+            except:
+                response_data = {'reqCode': reqCode, 'error': -1, 'errorInfo': f"post {callback_url} error"}
+                logging.error(f'{reqCode}:Handler failed with CustomError, {traceback.format_exc()}')
+
+
     def queue_callback(self, mode, json_data):
         reqCode = json_data['reqCode']
         self.log.logger.info(f'{reqCode}:#################Handler start#################.')
@@ -79,8 +114,9 @@ class Handler(object):
                 logging.info(f'Handler successfully, reqCode: {reqCode}.')
                 os.system(f'echo \"Handler successfully\" >> cache/{reqCode}_service_log.log')
             elif mode == "img_async":
-                thread = Thread(target=self.handle_img_async, kwargs=json_data)
-                thread.start()
+                self.request_queue.put((json_data))
+                reqCode = json_data['reqCode']
+                response_data = {'reqCode': reqCode, 'error': 0, 'errorInfo': ''}
 
         except Exception as ex:
             response_data = {'reqCode': reqCode, 'error':-1, 'errorInfo': str(ex)}
@@ -104,28 +140,10 @@ class Handler(object):
         points = np.array(points).reshape([-1,3])
         points = transform.matrix_transform(points,self.m.params)
         return points.tolist(),segments.tolist(),colors.tolist()
-    def handle_img_async(self,reqCode,imgFile,callback_url):
-        self.log.logger.info(f'enter async Handler, reqCode: {reqCode}.')
-        json_data = {}
-        json_data['reqCode'] = reqCode
-        json_data["callback_url"] = callback_url
-        json_data["imgFile"] = imgFile
-        try:
-            points,segments,colors = self.process(json_data)
-            avg_color = [np.mean(colors,axis=0)[[2,1,0,3]].astype('int').tolist()]
-            response_data = {'reqCode': reqCode, 'points': points, 'segments':segments,'colors':avg_color,'error':0, 'errorInfo': '',"version":0.6}
-        except CustomError as ex:
-            response_data = {'reqCode': reqCode, 'error': 1, 'errorInfo': str(ex)}
-            self.log.logger.error(f'{reqCode}:Handler failed with CustomError, {traceback.format_exc()}')
-        except Exception as ex:
-            response_data = {'reqCode': reqCode, 'error': -1, 'errorInfo': str(ex)}
-            self.log.logger.error(f'{reqCode}:Handler failed ..., {traceback.format_exc()}')
-        finally:
-            self.log.logger.info(f'{reqCode}:#####End handling#####.')
-            #requests.post(callback_url, data=json.dumps(response_data))
-            requests.post(callback_url, json=response_data)
-            return 
 
+    def stop(self):
+        self.is_running = False
+        self.worker_thread.join()
 def delete_tmp_file(reqCode, add_files_list=[]):
     cache_file_list = [f"cache/{reqCode}_service_log.log"]
     cache_file_list += add_files_list
