@@ -13,13 +13,16 @@ import time
 from tqdm import tqdm
 from Tools.file_io import *
 from skimage import transform as trans
-from dataload.render_strand import render_strand
+from dataload.render_strand import render_strand,render_cartoon
 import trimesh
 from Tools.utils import timeCost
 from util import cvmat2base64
 import logging
+from skimage import measure
+from Tools.utils import transform_Inv,save_obj_mesh
+import trimesh
 class strand_inference:
-    def __init__(self,rFolder,HairFilterLocal=False,use_modeling=False,use_ori_addinfo=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[]) -> None:
+    def __init__(self,rFolder,HairFilterLocal=False,use_modeling=False,use_ori_addinfo=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[],get_cartoon=False) -> None:
         """_summary_
 
         Args:
@@ -30,6 +33,7 @@ class strand_inference:
             Bidirectional_growth (bool, optional): _description_. Defaults to False.
             use_modeling:表示要使用到 输入深度信息的Modeling网络
         """   
+        self.get_cartoon = get_cartoon
         self.use_strand = use_strand
         if use_modeling and not use_ori_addinfo:
             use_depth=True   
@@ -201,7 +205,18 @@ class strand_inference:
                 else:
                     orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=self.opt.test_file)
         else:
-            orientation = self.ModelingHD_solver.inference(ori2D,use_step=self.use_step,bust=bust,norm_depth=depth_norm,name=name)
+            orientation,out_occ = self.ModelingHD_solver.inference(ori2D,use_step=self.use_step,bust=bust,norm_depth=depth_norm,name=name)
+            if self.get_cartoon:
+                verts, faces, normals, values = measure.marching_cubes(out_occ[0,0].cpu().numpy().transpose((2,1,0)), 0.5)
+                verts = transform_Inv(verts,scale=2)
+                verts = verts+np.array([0.00703544,-1.58652416,-0.01121912])
+                verts = np.dot(verts, revert_rot)+np.array([-0.00703544,1.58652416,0.01121912])
+                hair_mesh = trimesh.Trimesh(vertices=verts,faces=faces, process=False)
+                hair_mesh = trimesh.smoothing.filter_laplacian(hair_mesh, iterations=10)
+                hair_mesh.export(f"{self.opt.test_file}.obj")
+                _,_,rgb = render_cartoon(hair_mesh,self.body,mesh_colors=np.array([177, 177, 177, 255]))
+                cv2.imwrite(f"{self.opt.test_file}.png",rgb)
+                return verts,faces,normals
         if not isinstance(orientation,np.ndarray) and orientation==None:
             return
         # for debug growing net
@@ -294,20 +309,20 @@ class strand_inference:
         return points.reshape((-1,3)),segments,colors
         
 if __name__=="__main__":
-    use_unity=True
+    use_unity=False
     gender = ['female','male']
     # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
     if use_unity:
         set_bgcolor()
         set_camera(flag=1)
     hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),HairFilterLocal=False,use_modeling=True,use_step=False,\
-                                 use_strand=True,Bidirectional_growth=True,gpu_ids=[3])
+                                 use_strand=True,Bidirectional_growth=True,gpu_ids=[0],get_cartoon=True)
     save_path = os.path.join(os.path.dirname(__file__),"../data/test/out_paper")
     for g in gender:
         test_dir = os.path.join(os.path.dirname(__file__),"../data/test/paper")
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[1:]):#31:32，19
-            name = "female_20.jpg"
+        for name in tqdm(file_names[18:]):#31:32，19
+            # name = "female_20.jpg"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
             cv2.imwrite(os.path.join(save_path, name),img)

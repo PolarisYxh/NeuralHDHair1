@@ -7,4 +7,5 @@
 *.log*
 /*.cin
 /*.data
+/*.obj
 cache

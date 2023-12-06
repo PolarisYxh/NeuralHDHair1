@@ -228,7 +228,7 @@ class HairModelingHDSolver(BaseSolver):
             # pred_ori=pred_ori.transpose(0,2,3,4,1)
             # _,H,W,C,D=pred_ori.shape[:]
             # pred_ori=pred_ori.reshape(H ,W,C*D)
-            return pred_ori
+            return pred_ori,out_occ
 
     def loss_backward(self, losses, optimizer,retain=False,mix=False):
         optimizer.zero_grad()

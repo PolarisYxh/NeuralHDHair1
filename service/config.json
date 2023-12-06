@@ -19,7 +19,7 @@
     "//":"使用第三个modeling网络,不管use_hd,voxel_size 都是 192,256,256",
     "use_modeling":true,
     "//":"use_ori_addinfo (bool, optional): 使用方向图作为ModelingHD网络的输入，否则使用归一化后的头发深度图作为输入. Defaults to False.",
-    "use_ori_addinfo":true,
+    "use_ori_addinfo":false,
     "//":"使用voxel_size = 192,256,256，use_modeling时固定为192,256,256",
     "use_hd":false
 }
