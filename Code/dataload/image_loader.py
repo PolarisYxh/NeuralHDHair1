@@ -75,7 +75,7 @@ class image_loader(base_loader):
         
         x=random.randint(-30,30)
         # x=-x if random.randint(0,1)==1 else x
-        y=random.randint(-20,20)
+        y=random.randint(-30,30)
         # y=-y if random.randint(0,1)==1 else y
         ang = [y,x]
         tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1

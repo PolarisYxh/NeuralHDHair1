@@ -524,7 +524,7 @@ class GrowingNetSolver(BaseSolver):
             # ori_edge = torch.where(mask>0, ori_edge, ori_edge1)
             # show_slice(ori_edge.permute((2,3,0,1)).numpy(),img = np.zeros((1024,1024,3)),mode=2)
             # 腐蚀occ，作为采样的occ
-            k=4
+            k=5
             p=k//2
             occ1 = 1-F.max_pool3d(1-dilate_occ, kernel_size=k, stride=1, padding=p)
             # draw_circles_by_projection(occ1,iter=3)
