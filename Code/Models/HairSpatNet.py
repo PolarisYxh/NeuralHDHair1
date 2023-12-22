@@ -115,8 +115,17 @@ class HairSpatNet(BaseNetwork):
 
         self.test_points /= torch.tensor([W-1 , H-1 , D-1],dtype=torch.float).cuda()
         self.test_points=self.test_points[None]    ###### HWD   [0,1]
+    def to_mesh(self,scale=1):
 
-    def sample_train_point(self, gt_occ, gt_ori, sample_negative=False, sample_ratio=0.01):
+        stepInv = 1. / (0.00567194/scale)
+        gridOrg = np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
+
+        points-= np.array([0, 128*scale, 96*scale], dtype=np.float32)
+        points *= np.array([1., -1., -1.], dtype=np.float32) / stepInv
+        points += gridOrg
+
+        return points
+    def sample_train_point(self, gt_occ, gt_ori, calibration=None, sample_negative=False, sample_ratio=0.01):
         B, _, D, H, W = gt_occ.size()#[1, 1, 192, 256, 256]
         if sample_negative:#概率较大，0.7，因为会有一些场外的点参与训练
             with torch.no_grad():
@@ -164,7 +173,7 @@ class HairSpatNet(BaseNetwork):
             loss_weight = loss_weights[b, :, z[..., 0], y[..., 0], x[..., 0]]
             self.gt_occ.append(gt_occ_[None, ...])
             gt_ori_=gt_ori[b, :, z[..., 0], y[..., 0], x[..., 0]]
-            self.gt_ori.append(gt_ori_[None,...])
+            self.gt_ori.append(gt_ori_[None,...])#D,H,W
             self.points.append(index[:min_size][None, ...]) # sample voxels where is occupancy 
             self.loss_weight.append(loss_weight[None, ...])
 
@@ -173,9 +182,12 @@ class HairSpatNet(BaseNetwork):
         self.gt_occ = torch.cat(self.gt_occ, dim=0)
         self.loss_weight = torch.cat(self.loss_weight, dim=0)
         # self.loss_weight=None
-
-        self.points /= torch.tensor([W-1, H-1, D-1], dtype=torch.float).cuda()#self.points  voxels normalize
-        self.points = self.points[:, :, [1, 0, 2]]#points: H, W, D
+        if isinstance(calibration,torch.Tensor):
+            
+            pass
+        else:
+            self.points /= torch.tensor([W-1, H-1, D-1], dtype=torch.float).cuda()#self.points  voxels normalize
+            self.points = self.points[:, :, [1, 0, 2]]#points: H, W, D
 
 
     def get_depth_feat(self,depth_map,points):
@@ -221,7 +233,7 @@ class HairSpatNet(BaseNetwork):
         # hair_occ[tuple(p)]=(self.loss_weight[0]*5-1).to(torch.int).cpu().numpy()
         # draw_circles_by_projection(hair_occ)
 
-    def forward(self,x,gt_occ,gt_ori,mode='generator',depth_map=None,norm_depth=None,no_use_depth=True):
+    def forward(self,x,gt_occ,gt_ori,calibration=None,mode='generator',depth_map=None,norm_depth=None,no_use_depth=True):
         if mode=='generator':
             B=x.size(0)
             # D,H,W=96*2,128*2,128*2
@@ -230,10 +242,10 @@ class HairSpatNet(BaseNetwork):
             self.out_occ=torch.zeros(B,1,D,H,W).cuda()
             if random.random()<0.7:#loss偏小
                 sample_negative=True
-                self.sample_train_point(gt_occ,gt_ori,sample_negative=True)
+                self.sample_train_point(gt_occ,gt_ori,calibration=calibration,sample_negative=True)
             else:#loss偏大
                 sample_negative=False
-                self.sample_train_point(gt_occ, gt_ori, sample_negative=False)
+                self.sample_train_point(gt_occ, gt_ori,calibration=calibration, sample_negative=False)
             if depth_map is not None:
                 self.compute_weight(depth_map,self.points,D,sample_negative)
             if not no_use_depth:

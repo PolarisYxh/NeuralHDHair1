@@ -13,6 +13,7 @@ import math
 from torchvision.utils import save_image
 import json
 import matplotlib.pyplot as plt
+from skimage import transform as trans
 stepInv = 1. / 0.01015625
 gridOrg = np.array([-0.65, -0.65, -0.4875], dtype=np.float32)
 def timeCost(func):
@@ -1126,11 +1127,36 @@ def load_strand(d,trans=True,is_hd=False):
             points=transform(points)
 
     return segments,points
+def mesh_to_voxel(points,scale=1):
+    '''
+    :param points: 原始点云
+    :param scale:体素256*256时为2,128*128时为1
+    :return: 体素化的点云
+    '''
+    mul=1
+    stepInv = 1. / (0.00567194/scale/mul)#352.61303892495334 voxel 边长0.00567194 
+    gridOrg= np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
+    m = trans.SimilarityTransform(translation=[0, 128*scale*mul, 96*scale*mul],dimensionality=3).params@trans.SimilarityTransform(scale=[stepInv, -stepInv, -stepInv],dimensionality=3).params@trans.SimilarityTransform(translation=-gridOrg,dimensionality=3).params
+    points1 = trans.matrix_transform(points,m) #352.61304
+    return points1
+def voxel_to_mesh(points,scale=1):
+    '''
+    :param points: 原始点云
+    :param scale:体素256*256时为2,128*128时为1
+    :return: 体素化的点云
+    '''
+    mul=1
+    stepInv = 1. / (0.00567194/scale/mul)#voxel 边长0.00567194
+    gridOrg= np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
+    m = trans.SimilarityTransform(translation=gridOrg,dimensionality=3).params@trans.SimilarityTransform(scale=[1/stepInv, -1/stepInv, -1/stepInv],dimensionality=3).params@trans.SimilarityTransform(translation=[0, -128*scale*mul, -96*scale*mul],dimensionality=3).params
+    points1 = trans.matrix_transform(points,m)
+    return points1
 
 def transform(points,scale=1):
     '''
 
     :param points: 原始点云
+    :param scale:体素256*256时为2,128*128时为1
     :return: 体素化的点云
     '''
     mul=1
@@ -1140,17 +1166,18 @@ def transform(points,scale=1):
     points -= gridOrg
     points *= np.array([1., -1., -1.], dtype=np.float32) * stepInv  #opengl中xyz坐标轴与python中不一样，此处为一个调整，可以不管，/stepInv  step就是每个体素的边长
     points += np.array([0, 128*scale*mul, 96*scale*mul], dtype=np.float32)   #使所有点坐标的值落在[0-96,0-128,0-128]之间
-
     # points = np.maximum(points,
     #                     np.array([0, 0, 0], dtype=np.float32))  # note that voxels out of boundaries are minus
     # points = np.minimum(points, np.array([127.9, 127.9, 95.9], dtype=np.float32))
-
-
-
     return points
 
 def transform_Inv(points,scale=1):
-    mul=int(np.max(points)//(128*scale)+1)
+    '''
+    :param points: 原始点云
+    :param scale:体素256*256时为2,128*128时为1
+    :return: 体素化的点云
+    '''
+    mul=1
     print('mul:',mul)
 
     stepInv = 1. / (0.00567194/scale/mul)
