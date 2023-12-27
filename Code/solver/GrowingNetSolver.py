@@ -488,7 +488,7 @@ class GrowingNetSolver(BaseSolver):
             occ=np.linalg.norm(ori,axis=-1)
             occ=(occ>0).astype(np.float32)[...,None]
             occ1 = torch.from_numpy(occ).permute((3,0,1,2))
-            k=3
+            k=3+2*(ori.shape[0]//128-1)
             p=int(k/2)
             # occ1 = 1-F.max_pool3d(1-occ1, kernel_size=k, stride=1, padding=p)#腐蚀
             # occ1 = F.max_pool3d(occ1, kernel_size=k, stride=1, padding=p)#膨胀
@@ -524,7 +524,10 @@ class GrowingNetSolver(BaseSolver):
             # ori_edge = torch.where(mask>0, ori_edge, ori_edge1)
             # show_slice(ori_edge.permute((2,3,0,1)).numpy(),img = np.zeros((1024,1024,3)),mode=2)
             # 腐蚀occ，作为采样的occ
-            k=5
+            if ori.shape[0]==128:
+                k=4
+            elif ori.shape[0]==256:
+                k=7
             p=k//2
             occ1 = 1-F.max_pool3d(1-dilate_occ, kernel_size=k, stride=1, padding=p)
             # draw_circles_by_projection(occ1,iter=3)
@@ -557,13 +560,14 @@ class GrowingNetSolver(BaseSolver):
             final_segment = np.delete(final_segment, index, axis=0)
             # 采样点
             if sample_num!=-1:
-                final_strand_del_by_ori=pyBsplineInterp.GetBsplineInterp(final_strand_del_by_ori,final_segment,sample_num,3)
-                final_strand_del_by_ori=final_strand_del_by_ori.reshape((-1,sample_num,3))
+                final_strand_del_by_ori_same=pyBsplineInterp.GetBsplineInterp(final_strand_del_by_ori,final_segment,sample_num,3)
+                final_strand_del_by_ori_same=final_strand_del_by_ori_same.reshape((-1,sample_num,3))
                 # final_strand_del_by_ori = process_list(final_strand_del_by_ori,final_segment,sample_num)#final_strand_del_by_ori:in:585046*3 list; out:(11995, 100, 3)
-                final_segment = (np.ones(len(final_strand_del_by_ori))*sample_num).astype("int")
+                final_segment_same = (np.ones(len(final_strand_del_by_ori))*sample_num).astype("int")
                 #删除大部分在膨胀区域的发丝
-                final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
+                final_strand_del_by_ori_same,final_segment_same,final_strand_del_by_ori,final_segment=delete_strand_out_ori(occ2,final_strand_del_by_ori_same,final_segment_same,final_strand_del_by_ori,final_segment)#occ2:[1, 96, 128, 128]
                 final_strand_del_by_ori = final_strand_del_by_ori.reshape(-1,3)
+                final_strand_del_by_ori_same = final_strand_del_by_ori_same.reshape(-1,3)
             # x=np.array(final_strand_del_by_ori)[:,:].astype('int')
             # draw_circles_by_projection1(x)
             final_strand_del_by_ori1=(np.array(final_strand_del_by_ori[:,[0,1,2]])-np.array([s[0]//2,s[1]//2,s[2]//2]))*np.array([-1,1,1])
@@ -589,8 +593,9 @@ class GrowingNetSolver(BaseSolver):
             colors = np.c_[colors, np.ones(len(colors))]
             colors = (colors*255).astype('uint8')
             final_strand_del_by_ori = transform_Inv(final_strand_del_by_ori,scale=scale)
+            final_strand_del_by_ori_same = transform_Inv(final_strand_del_by_ori_same,scale=scale)
         # write_strand(final_strand_del_by_ori, self.opt, final_segment, 'ori')
-        return final_strand_del_by_ori,final_segment,colors
+        return final_strand_del_by_ori_same,final_strand_del_by_ori,final_segment,colors
         # write_strand(final_strand_del_by_label, self.opt, final_segment_label, 'label')
 
 

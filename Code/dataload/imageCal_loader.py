@@ -19,6 +19,7 @@ class imageCal_loader(base_loader):
         self.mesh = trimesh.load(os.path.join(os.path.dirname(__file__),"../../",'female_halfbody_medium_join.obj'))
         self.orig_vertices = self.mesh.vertices.copy()
         self.orig_vertices = self.orig_vertices+np.array([0.00703544,-1.58652416,-0.01121912])
+        self.voxel2mesh_m = self.voxel2mesh_matrix(scale =2)
         if self.isTrain:
             self.num_of_val = opt.num_of_val
             self.train_corpus = []
@@ -52,6 +53,12 @@ class imageCal_loader(base_loader):
             print(f"num of training data: {self.train_nums}")
         else:
             print(f"num of test data: {self.train_nums}")
+    def voxel2mesh_matrix(self,scale=1):
+        mul=1
+        stepInv = 1. / (0.00567194/scale/mul)#voxel 边长0.00567194
+        gridOrg= np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
+        m = trans.SimilarityTransform(translation=gridOrg,dimensionality=3).params@trans.SimilarityTransform(scale=[1/stepInv, -1/stepInv, -1/stepInv],dimensionality=3).params@trans.SimilarityTransform(translation=[0, -128*scale*mul, -96*scale*mul],dimensionality=3).params
+        return m
     def __len__(self):
         # if self.isTrain:
         #     numbers = list(range(0, 13))
@@ -72,14 +79,15 @@ class imageCal_loader(base_loader):
         
         strand = strand1.copy()
         strand = strand+np.array([0.00703544,-1.58652416,-0.01121912])
-        flip=True
+        flip=False
         if flip:
-            strand[:,0]=-strand[:0]
+            strand[:,0]=-strand[:,0]
         x=random.randint(-30,30)
         # x=-x if random.randint(0,1)==1 else x
         y=random.randint(-30,30)
         # y=-y if random.randint(0,1)==1 else y
         ang = [y,x]
+        ang = [30,30]
         tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
         strand = trans.matrix_transform(strand, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
         self.mesh.vertices = trans.matrix_transform(self.orig_vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
@@ -114,15 +122,7 @@ class imageCal_loader(base_loader):
         mask[mask_area]=255
         image = np.copy(img2)
         image = get_conditional_input_data1(image, mask, False, True)
-        # flip=True
-        # if flip:
-        #     image=(image-0.5)*2
-        #     image = image[:, ::-1, :] * np.array([1.,1.,-1])
-        #     image=(image+1)/2
-        #     mask = mask[:, ::-1]
-        #     image[mask!=255]=[0,0,0]
-        #     depth = depth[:,::-1]
-        # cv2.imwrite("1-2.png",(255*image).astype('uint8'))
+        cv2.imwrite(f"{file_name.split('/')[-1]}.png",(255*image).astype('uint8'))
         
         # if not self.opt.no_use_bust: 
         #     # 图片中加上标准人体深度图 引入位姿信息
@@ -169,9 +169,9 @@ class imageCal_loader(base_loader):
         depth=depth.permute(2,0,1)
         data_list['depth']=depth
         if self.opt.model_name=='HairSpatNet':
-            gt_orientation = get_ground_truth_3D_ori(file_name, np.copy((image*255).astype('uint8')), flip, growInv=self.opt.growInv)
-        elif self.opt.model_name=='HairModelingHD':
-            gt_orientation = get_ground_truth_3D_ori(file_name, np.copy((image*255).astype('uint8')), flip, growInv=self.opt.growInv,is_hd=True)
+            gt_orientation = get_ground_truth_3D_ori(file_name, flip, growInv=self.opt.growInv)
+        elif self.opt.model_name=='HairModelingHDCal':
+            gt_orientation = get_ground_truth_3D_ori(file_name, flip, growInv=self.opt.growInv,is_hd=True)
         # image,gt_orientation,strand2D=self.random_translation(image,gt_orientation,strand2D)
         # gt_orientation 96,128,128,3
         # gt_orientation,data_list=self.random_translation(self.opt.image_size,gt_orientation,data_list)
@@ -182,7 +182,7 @@ class imageCal_loader(base_loader):
         gt_orientation=torch.from_numpy(gt_orientation)
         gt_occ=torch.from_numpy(gt_occ)
         gt_orientation=gt_orientation.permute(3,0,1,2)#3,96,128,128
-        gt_occ=gt_occ.permute(3,0,1,2)#1,96,128,128
+        gt_occ=gt_occ.permute(3,0,1,2)#1,96,128,128 
         # if self.opt.model_name=='HairModelingHD':
         #     gt_orientation, _,gt_occ,_ =close_voxel1(gt_occ,gt_orientation,5)
         if 'add_info' in data_list:
@@ -196,7 +196,8 @@ class imageCal_loader(base_loader):
             'Ori2D':Ori2D,
             'add_info':add_info,
             'depth':data_list['depth'],
-            'calibration':calibration
+            'calibration':torch.from_numpy(calibration),#世界坐标系到裁剪坐标系的变换矩阵，即相机内外参矩阵
+            'voxel2mesh_matrix':torch.from_numpy(self.voxel2mesh_m)#体素坐标系到世界坐标系的变换矩阵
         }
         # if self.opt.no_use_depth==False:
         #     return_list['depth']=data_list['depth']

@@ -108,7 +108,7 @@ class Local_Filter(BaseNetwork):
         if not train_global:
             with torch.no_grad():
                 out_ori_low,out_occ_low,self.loss_global['loss_ori_low'],self.loss_global['loss_occ_low']=net_global(image,gt_occ,gt_ori,calibration=calibration,mode='generator',depth_map=depth_map)
-            points=net_global.points
+            clip_points=net_global.clip_points
             feat_ori,feat_occ=net_global.get_phi()
             self.gt_ori=net_global.gt_ori
             self.gt_occ=net_global.gt_occ
@@ -117,15 +117,15 @@ class Local_Filter(BaseNetwork):
 
             # print(strand2D.size())
             self.im_feat_list,_ = self.image_filter(strand2D)
-            self.query(points,feat_ori.detach(),feat_occ.detach())
+            self.query(clip_points,feat_ori.detach(),feat_occ.detach())
 
             ori,occ=self.get_pred()
 
             self.loss_local['loss_ori_hd'] = l1_loss((self.gt_ori - ori * self.gt_occ)*self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
             self.loss_local['loss_occ_hd'] = l1_loss((self.gt_occ - occ) * self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
         else:
-            out_ori_low,out_occ_low,self.loss_global['loss_ori_low'],self.loss_global['loss_occ_low']=net_global(image,gt_occ,gt_ori,mode='generator',depth_map=depth_map)
-            points=net_global.points
+            out_ori_low,out_occ_low,self.loss_global['loss_ori_low'],self.loss_global['loss_occ_low']=net_global(image,gt_occ,gt_ori,calibration=calibration,mode='generator',depth_map=depth_map)
+            clip_points=net_global.clip_points
             feat_ori,feat_occ=net_global.get_phi()
             self.gt_ori=net_global.gt_ori
             self.gt_occ=net_global.gt_occ
@@ -138,15 +138,15 @@ class Local_Filter(BaseNetwork):
                     self.im_feat_list,_ = self.image_filter(image)
                 elif self.opt.use_add_info:
                     self.im_feat_list,_ = self.image_filter(strand2D)
-                self.query(points,feat_ori.detach(),feat_occ.detach())
+                self.query(clip_points,feat_ori.detach(),feat_occ.detach())
 
                 ori,occ=self.get_pred()
 
                 self.loss_local['loss_ori_hd'] = l1_loss((self.gt_ori - ori * self.gt_occ)*self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
                 self.loss_local['loss_occ_hd'] = l1_loss((self.gt_occ - occ) * self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
 
-        self.point_convert_to_voxel(points, ori, mode='ori')
-        self.point_convert_to_voxel(points, occ, mode='occ')
+        self.point_convert_to_voxel(net_global.voxel_points, ori, mode='ori')
+        self.point_convert_to_voxel(net_global.voxel_points, occ, mode='occ')
         return self.out_ori,self.out_occ,out_ori_low,out_occ_low,self.loss_local,self.loss_global
         # return out_ori_low,self.out_occ,out_ori_low,out_occ_low,self.loss_local,self.loss_global
 
@@ -192,8 +192,9 @@ class Local_Filter(BaseNetwork):
         # return out_ori_low,self.out_occ,out_ori_low,out_occ_low
 
     def point_convert_to_voxel(self, points, res, mode):
-        D, H, W = self.out_ori.size()[2:]
-        index = points * torch.tensor([H - 1., W - 1., D - 1.]).cuda()
+        # D, H, W = self.out_ori.size()[2:]
+        # index = points * torch.tensor([H - 1., W - 1., D - 1.]).cuda()
+        index = points[:, :, [1, 0, 2]]
         # index = points
         index = torch.round(index)
         index = index.type(torch.long)

@@ -19,7 +19,7 @@ from Tools.utils import timeCost
 from util import cvmat2base64
 import logging
 from skimage import measure
-from Tools.utils import transform_Inv,save_obj_mesh
+from Tools.utils import transform_Inv
 import trimesh
 class strand_inference:
     def __init__(self,rFolder,HairFilterLocal=False,use_modeling=False,use_ori_addinfo=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[],get_cartoon=False) -> None:
@@ -100,7 +100,7 @@ class strand_inference:
                 self.opt.which_iter=16512 # ori: LocalFilter line 16
                 self.opt.check_name="2023-10-26_addori"
             else:
-                self.opt.which_iter=295840 #299280 295840
+                self.opt.which_iter=700400 # 295840 测试过较好,但有时有空洞  667360 700400
                 self.opt.check_name="2023-07-31_rot_depth1"
                 
             self.opt.use_ori_addinfo=use_ori_addinfo
@@ -164,14 +164,14 @@ class strand_inference:
         logging.info("leave strand2d,enter strand3d")
         # kernel = np.ones((3,3),np.uint8)
         # ori2D = cv2.erode(ori2D,kernel,iterations=1)
-        # if self.use_step:
-        #     cv2.imwrite(f"{self.opt.test_file}_ori.png",(ori2D*255).astype('uint8'))
-        #     cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-        #     cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
-        # else:
-        #     cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
-        #     cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-        #     cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
+        if self.use_step:
+            cv2.imwrite(f"{self.opt.test_file}_ori.png",(ori2D*255).astype('uint8'))
+            cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
+        else:
+            cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
+            cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
         depth_norm = None
         if self.opt.input_nc==3 or self.use_depth:
             if not self.use_strand:
@@ -228,7 +228,7 @@ class strand_inference:
         # m = np.identity(3)
         # draw_arrows_by_projection1(os.path.join("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/","DB1"),self.iter["GrowingNet"],draw_occ=True,hair_ori=orientation)
         m=revert_rot
-        points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color,sample_num=self.sample_num)
+        points_same,points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color,sample_num=self.sample_num)
         mask = np.sum(colors,axis=1)
         colors[np.where(mask==255)]=color
         #旋转点
@@ -242,10 +242,13 @@ class strand_inference:
         # 采样点
         # points = process_list(points,segments,self.sample_num)
         sample_num=self.sample_num
+        start = segments[0]
+        segments = np.cumsum(segments)
+        segments = np.insert(segments,0,0)[:-1]
         if self.delete_far:
             connect=False
-            points = self.froot.getNewRoot(points.reshape((-1,self.sample_num,3)),connect=connect)
-            points = np.array(points).reshape([-1,3])
+            points_same,points,segments = self.froot.getNewRoot(points_same.reshape((-1,self.sample_num,3)),points,segments,connect=connect)
+            points_same = np.array(points_same).reshape([-1,3])
             if connect:
                 sample_num=self.sample_num+1
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
@@ -305,23 +308,38 @@ class strand_inference:
                 # img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
                 # img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
-        segments = np.array(range(0,len(points)//100))*sample_num
+        segments_same = np.array(range(0,len(points_same)//sample_num))*sample_num # 固定100个点
+        # writejson("test1.json",{"points":points.reshape((-1,3)).tolist(),"segments":segments.tolist()})
         return points.reshape((-1,3)),segments,colors
         
 if __name__=="__main__":
+    # test marching_cubes
+    # body = trimesh.load_mesh("./female_halfbody_medium_join.obj")
+    # ori=np.load(os.path.join("/data/HairStrand/NeuralHDHairData","strands00001",'Ori_gt_hg.npy'),allow_pickle=True)
+    # mask=np.linalg.norm(ori.reshape((ori.shape[0], ori.shape[1], -1, 3)),axis=-1)
+    # gt_occ=(mask>0).astype(np.float32)
+    # gt_occ[gt_occ>=0.5]=1
+    # gt_occ[gt_occ<0.5]=0
+    # verts, faces, normals, values = measure.marching_cubes(gt_occ.transpose((1,0,2)), 0.5)
+    # verts = transform_Inv(verts,scale=ori.shape[0]//128)
+    # hair_mesh = trimesh.Trimesh(vertices=verts,faces=faces, process=False)
+    # hair_mesh.export(f"strands00001.obj")
+    # _,_,rgb = render_cartoon(hair_mesh,body,mesh_colors=np.array([177, 177, 177, 255]))
+    # cv2.imwrite(f"strands00001.png",rgb[...,:3])
+    
     use_unity=False
     gender = ['female','male']
     # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
     if use_unity:
         set_bgcolor()
         set_camera(flag=1)
-    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),HairFilterLocal=False,use_modeling=True,use_step=False,\
-                                 use_strand=True,Bidirectional_growth=True,gpu_ids=[0],get_cartoon=True)
+    hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),HairFilterLocal=True,use_modeling=True,use_step=True,\
+                                 use_strand=True,Bidirectional_growth=True,gpu_ids=[2],get_cartoon=False)
     save_path = os.path.join(os.path.dirname(__file__),"../data/test/out_paper")
     for g in gender:
         test_dir = os.path.join(os.path.dirname(__file__),"../data/test/paper")
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[18:]):#31:32，19
+        for name in tqdm(file_names[25:]):#31:32，19
             # name = "female_20.jpg"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)

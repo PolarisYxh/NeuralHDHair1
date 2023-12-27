@@ -570,7 +570,7 @@ def get_ground_truth_3D_occ(d, flip=False):
     occ = np.ascontiguousarray(occ)
     return occ
 
-def get_ground_truth_3D_ori1(d, ang,img,flip=False,growInv=False,is_hd=False):
+def get_ground_truth_3D_ori1(d, ang,img=None,flip=False,growInv=False,is_hd=False):
     file = os.path.join(d, "Ori3D.mat").replace("\\", "/")
     transfer=False
     if not os.path.exists(file):
@@ -1370,9 +1370,9 @@ def sample_to_padding_strand1(sample_voxel,segments,points,pt_num,sd_num,growInv
         train_strands.append(train_strand[None])
 
     return np.concatenate(train_strands,axis=0),np.concatenate(labels,axis=0)
-def delete_strand_out_ori(mask,strands,segments):
-    s,v_num,c=strands.shape
-    strands1=np.copy(strands[:,:,[2,1,0]]).astype('int').reshape(-1,3)
+def delete_strand_out_ori(mask,strands_same,segments_same,strands,segments):
+    s,v_num,c=strands_same.shape
+    strands1=np.copy(strands_same[:,:,[2,1,0]]).astype('int').reshape(-1,3)
     m=mask[0].numpy()
     occ=m[tuple(strands1.T)]
     index=np.where(occ==0)[0]
@@ -1380,9 +1380,19 @@ def delete_strand_out_ori(mask,strands,segments):
     s_index, counts = np.unique(s_index, return_counts=True)
     i= counts>v_num/5*3#发丝一半以上在膨胀后的区域，则可以删除
     s_index=s_index[i]
-    strands = np.delete(strands, s_index, axis=0)
+    strands_same = np.delete(strands_same, s_index, axis=0)
+    segments_same = np.delete(segments_same, s_index, axis=0)
+    
+    start=0
+    index1 = []
+    for i in range(len(segments)):
+        if i in s_index:
+            t = list(range(start,start+segments[i]))
+            index1+=t
+        start+=segments[i]
+    strands = np.delete(strands, index1, axis=0)
     segments = np.delete(segments, s_index, axis=0)
-    return strands,segments
+    return strands_same,segments_same,strands,segments
 # import numba
 # @timeCost
 # @numba.jit#更慢
@@ -2041,3 +2051,38 @@ def position_encoding(p,L=10):
     pe[:,0::2,...]=torch.cos(position_feat)
     pe[:,1::2,...]=torch.sin(position_feat)
     return pe
+def orthogonal(points, calibrations, transforms=None):
+    '''
+    Compute the orthogonal projections of 3D points into the image plane by given projection matrix
+    :param points: [B, 3, N] Tensor of 3D points
+    :param calibrations: [B, 4, 4] Tensor of projection matrix
+    :param transforms: [B, 2, 3] Tensor of image transform matrix
+    :return: xyz: [B, 3, N] Tensor of xyz coordinates in the image plane
+    '''
+    rot = calibrations[:, :3, :3]
+    trans = calibrations[:, :3, 3:4]
+    pts = torch.baddbmm(trans, rot, points)#[1, 3, 1],[1, 3, 3],[1, 3, 10000]
+    if transforms is not None:
+        scale = transforms[:2, :2]
+        shift = transforms[:2, 2:3]
+        pts[:, :2, :] = torch.baddbmm(shift, scale, pts[:, :2, :])
+    return pts
+def perspective(points, calibrations, transforms=None):
+    '''
+    Compute the perspective projections of 3D points into the image plane by given projection matrix
+    :param points: [Bx3xN] Tensor of 3D points
+    :param calibrations: [Bx4x4] Tensor of projection matrix
+    :param transforms: [Bx2x3] Tensor of image transform matrix
+    :return: xy: [Bx2xN] Tensor of xy coordinates in the image plane
+    '''
+    rot = calibrations[:, :3, :3]
+    trans = calibrations[:, :3, 3:4]
+    homo = torch.baddbmm(trans, rot, points)
+    xy = homo[:, :2, :] / homo[:, 2:3, :]
+    if transforms is not None:
+        scale = transforms[:2, :2]
+        shift = transforms[:2, 2:3]
+        xy = torch.baddbmm(shift, scale, xy)
+
+    xyz = torch.cat([xy, homo[:, 2:3, :]], 1)
+    return xyz

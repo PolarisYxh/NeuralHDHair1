@@ -3,6 +3,7 @@ from dataload.strand_loader import strand_loader
 from dataload.image_loader import image_loader
 from dataload.imageCal_loader import imageCal_loader
 from dataload.step_loader import step_loader
+from dataload.origin_step_loader import origin_step_loader
 import torch
 def data_loader(opt):
     if opt.data_mode=='strand':
@@ -19,7 +20,7 @@ def data_loader(opt):
         instance.initialize(opt)
         return create_dataloader(opt,instance)
     if opt.data_mode=='step':
-        instance=step_loader()
+        instance=origin_step_loader()
         instance.initialize(opt)
         return create_dataloader(opt,instance)
 

@@ -14,7 +14,7 @@
     "gpus":"0",
     "model_type":"vit_h",
     "//":"使用自研u-net作为分割算法",
-    "use_step":false,
+    "use_step":true,
     "use_depth":true,
     "//":"使用segment anything作为分割算法",
     "use_strand":true,

@@ -220,6 +220,14 @@ class filter_crop:
             step_align = cv2.warpAffine(step,
                                 M, (640, 640),
                                 borderValue=0.0)
+            # step_align1=(step_align*255).astype('uint8')
+            # lms1 = trans.matrix_transform(lms_3d[:17,:2], tform.params)
+            # for point in lms1:
+            #     cv2.circle(step_align1, tuple(point.astype('int')), 1, (0, 255, 0), 2)
+            # for point in self.mean_lms[:17,:2]:
+            #     cv2.circle(step_align1, tuple(point.astype('int')), 1, (255, 0, 0), 2)
+            # cv2.imwrite(image_name.split('.')[0]+"_2.png",step_align1)
+            
             #身体分割图
             body_parse = step_align[:, :, 2]
             mask1=step_align[:, :, [0, 1]]
@@ -254,41 +262,79 @@ class filter_crop:
             mask1 = parsing.astype('uint8').copy()
             mask1[mask1[:, :] != detectedFacePart["hair"]] = 0  #,1,0
             mask1[mask1[:, :] == detectedFacePart["hair"]] = 255
-        # cv2.imwrite(image_name.split('.')[0]+"_mask.png",mask1)
+        cv2.imwrite(image_name.split('.')[0]+"_mask.png",mask1)
         # cv2.imwrite(image_name.split('.')[0]+"_mask1.png",body_parse)
-        kernel = np.ones((15,15),np.uint8)
+        kernel = np.ones((17,17),np.uint8)
         mask1 = cv2.erode(mask1.astype('uint8'),kernel,iterations = 1)
-        hair_area1 = np.where(mask1>0)
-        # cv2.imwrite(image_name.split('.')[0]+"_mask.png",mask1)
-        # 找中位的点,先找到横向的中间，再找到纵向的中间
-        hair_area1 = np.array(hair_area1).T
-        sorted_indices = np.argsort(hair_area1[:, 1])
-        sorted_points = hair_area1[sorted_indices]
-        m_y = sorted_points[len(sorted_points)//2][1]
-        y=sorted_points[sorted_points[:,1]==m_y]
-        sorted_indices = np.argsort(y[:, 0])
-        sorted_points = y[sorted_indices]
-        subarrays = np.split(sorted_points[:,0], np.where(np.diff(sorted_points[:,0]) != 1)[0] + 1)#分段连续数组
-        max_subarray = max(subarrays, key=len)
-        m_x=max_subarray[len(max_subarray)//2]
-        hair_point1 = [m_y,m_x]
-        
+        contours, hierarchy = cv2.findContours(mask1, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        areas = []
+        for contour in contours:  
+            area = cv2.contourArea(contour)  
+            areas.append(area)
+        m_area = np.mean(np.array(areas))*0.618
+        index = np.where(areas>m_area)
+        x=index[0].tolist()
+        contours1 = np.array(contours,dtype=object)[x]
+        hair_point1 = []
+        for hair_area1 in contours1:
+            # cv2.imwrite(image_name.split('.')[0]+"_mask.png",mask1)
+            # 找中位的点,先找到横向的中间，再找到纵向的中间
+            # hair_area1 = np.array(hair_area1[:,0,:])
+            # sorted_indices = np.argsort(hair_area1[:, 1])
+            # sorted_points = hair_area1[sorted_indices]
+            # m_y = sorted_points[len(sorted_points)//2][1]
+            # y=sorted_points[sorted_points[:,1]==m_y]
+            # hair_area1 = np.where(mask1>0)
+            # sorted_indices = np.argsort(y[:, 0])
+            # sorted_points = y[sorted_indices]
+            # subarrays = np.split(sorted_points[:,0], np.where(np.diff(sorted_points[:,0]) != 1)[0] + 1)#分段连续数组
+            # max_subarray = max(subarrays, key=len)
+            # m_x=max_subarray[len(max_subarray)//2]
+            # hair_point1.append([m_y,m_x])
+            hair_area1 = np.array(hair_area1[:,0,:])
+            sorted_indices = np.argsort(hair_area1[:, 0])
+            sorted_points = hair_area1[sorted_indices]
+            m_y = sorted_points[len(sorted_points)//2][0]
+            y=sorted_points[sorted_points[:,0]==m_y]
+            p = np.sort(y[:, 1])
+            subarrays = np.split(p, np.where(np.diff(p) != 1)[0] + 1)#分段连续数组
+            if len(subarrays)>1:
+                m_x = int((subarrays[0][0]+subarrays[1][0])//2)
+            else:
+                m_x = int((np.max(y[:, 1])+np.min(y[:, 1]))//2)
+            hair_point1.append([m_y,m_x])
+            
         imgB64 = cvmat2base64(framesForHair[0])#framesForHair[0] 640,640
         aligned = cv2.warpAffine(framesForHair[0],
                                 M, (640, 640),
                                 borderValue=0.0)
-        masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[30,:2],
-                                                                                    lms_3d[33,:2]]),[1,0,0])
+        hair_point1 = np.array(hair_point1)
+        hair_point2 = np.append(hair_point1,lms_3d[[30,33],:2],axis=0)
+        labels = np.zeros(len(hair_point1)+2).astype('int')
+        labels[:len(hair_point1)]=1
+        masks = self.segall.request_faceParsing(image_name, 'img', imgB64,hair_point2,labels)
+        labels = np.zeros(len(hair_point1)+1).astype('int')
+        labels[:len(hair_point1)]=1
         if masks[tuple(lms_3d[27,[1,0]].astype('int').T)]==True:
-            masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[30,:2]]),[1,0])
+            hair_point2 = np.append(hair_point1,lms_3d[30,:2][None],axis=0)
+            masks = self.segall.request_faceParsing(image_name, 'img', imgB64,hair_point2,labels)
         if masks[tuple(lms_3d[27,[1,0]].astype('int').T)]==True:
-            masks = self.segall.request_faceParsing(image_name, 'img', imgB64,np.array([hair_point1[:2],lms_3d[27,:2]]),[1,0])
+            hair_point2 = np.append(hair_point1,lms_3d[27,:2][None],axis=0)
+            masks = self.segall.request_faceParsing(image_name, 'img', imgB64,hair_point2,labels)
+        if masks[tuple(lms_3d[27,[1,0]].astype('int').T)]==True:
+            hair_point2 = np.append(hair_point1,lms_3d[33,:2][None],axis=0)
+            masks = self.segall.request_faceParsing(image_name, 'img', imgB64,hair_point2,labels)
         parsing = np.zeros_like(framesForHair[0][:,:,0])
         parsing[masks] = 255
         save_parsing = np.zeros_like(framesForHair[0])
         save_parsing[masks] = framesForHair[0][masks]
-        # cv2.circle(save_parsing, tuple(hair_point1), 1, (255, 0, 0), 2)
-        # cv2.imwrite(image_name.split('.')[0]+"_1.png",save_parsing)
+        x=np.copy(framesForHair[0])
+        for contour in contours1:
+            for point in contour[:,0,:]:
+                cv2.circle(x, tuple(point), 1, (0, 255, 0), 2)
+        for point in hair_point1:
+            cv2.circle(x, tuple(point), 1, (255, 0, 0), 2)
+        cv2.imwrite(image_name.split('.')[0]+"_1.png",x)
         aligned_parsing = cv2.warpAffine(parsing,
                                 M, (640, 640),
                                 borderValue=0.0)
@@ -329,27 +375,62 @@ class filter_crop:
             kdtree = KDTree(approx[:,0,:])
             dist, index1 = kdtree.query(self.shoulder_lms[[3,4],:2])
             idx = [0,16] #0,16,19,
-            real_lms = np.append(approx[:,0,:][index1],self.mean_lms[idx,:2],axis=0)
+            # real_lms = np.append(approx[:,0,:][index1],self.mean_lms[idx,:2],axis=0)
+            # # drawLms((aligned*255).astype('uint8'),real_lms.astype('int'))
+            # target_lms = np.append(self.shoulder_lms[[3,4],:2],self.mean_lms[idx,:2],axis=0)
+            # # drawLms((aligned*255).astype('uint8'),target_lms.astype('int'),name="lms1.png")
+            # tform = trans.estimate_transform(tp, real_lms, target_lms)
+            # M1 = tform.params[0:2]
+            # M1[0,0]=1#左右方向尺度不变，仅拉长头发到肩膀
+            # M1[0,1]=0
+            # M1[1,0]=0
+            # M1[0,2]=0
+            
+            point=trans.matrix_transform(hair_point1, tform.params)
+            length = np.linalg.norm(self.mean_lms[idx[0],:2]-self.mean_lms[idx[1],:2])//2
+            point=np.mean(self.mean_lms[idx,:2],axis=0)[None]
+            # point[0][1]-=length
+            target_p = np.mean(self.shoulder_lms[[3,4],:2],axis=0)
+            source_p = np.mean(approx[:,0,:][index1[[0,1]]],axis=0)
+            target_p[0]=point[0][0]
+            source_p[0] = point[0][0]
+            real_lms = np.append(target_p[None],point,axis=0)
+            # target_lms = np.append(p[None],point,axis=0)
             # drawLms((aligned*255).astype('uint8'),real_lms.astype('int'))
-            target_lms = np.append(self.shoulder_lms[[3,4],:2],self.mean_lms[idx,:2],axis=0)
             # drawLms((aligned*255).astype('uint8'),target_lms.astype('int'),name="lms1.png")
-            tform = trans.estimate_transform(tp, real_lms, target_lms)
-            M1 = tform.params[0:2]
+            M1 = trans.AffineTransform(translation=[point[0][0],point[0][1]]).params@trans.AffineTransform(scale=[1,(target_p[1]-point[0][1])/(source_p[1]-point[0][1])]).params@trans.AffineTransform(translation=[-point[0][0],-point[0][1]]).params
+            p2 = trans.matrix_transform(source_p,M1)
+            target_lms = np.append(p2,point,axis=0)
+            # drawLms((aligned*255).astype('uint8'),target_lms.astype('int'),name="lms1.png")
+            
+            M1 = M1[0:2]
             M1[0,0]=1#左右方向尺度不变，仅拉长头发到肩膀
             M1[0,1]=0
             M1[1,0]=0
+            # M1[1,1]=np.clip(M1[1,1],0.9,1.1)
             M1[0,2]=0
+            # M1[1,2]=np.clip(M1[1,2],-20,20)
+            logging.info('aligned to shoulder')
 
         aligned = cv2.warpAffine(aligned,
                                 M1, (640, 640),
-                                borderValue=0.0)
+                                borderValue=0.0)#将对齐到标准头的头发分割图对齐肩膀
+        # step_align1=(aligned*255).astype('uint8')
+        # lms1 = trans.matrix_transform(lms_3d[:17,:2], tform.params)
+        # for point in lms1:
+        #     cv2.circle(aligned, tuple(point.astype('int')), 1, (0, 255, 0), 2)
+        # for point in self.mean_lms[:17,:2]:
+        #     cv2.circle(aligned, tuple(point.astype('int')), 1, (255, 0, 0), 2)
+        # cv2.imwrite(image_name.split('.')[0]+"_2.png",aligned)
         # for debug
-        # bust1 = cv2.resize(bust,(640,640))
-        # aligned_parsing = cv2.warpAffine(aligned_parsing,
-        #                         M1, (640, 640),
-        #                         borderValue=0.0)
-        # aligned[(bust1>0)&(aligned_parsing==0)]=[0,0,255]
-        # cv2.imwrite(image_name.split('.')[0]+"_parse.png",aligned)
+        bust1 = cv2.resize(bust,(640,640))
+        aligned1 = np.copy(aligned)
+        aligned_parsing1 = cv2.warpAffine(aligned_parsing,
+                                M1, (640, 640),
+                                borderValue=0.0)
+        cv2.imwrite("1.png",aligned_parsing1)
+        aligned1[(bust1>0)&(aligned_parsing1==0)]=[0,0,255]
+        cv2.imwrite(image_name.split('.')[0]+"_parse.png",aligned1)
         return aligned,bust,framesForHair[0]
 if __name__=="__main__":
     gender = ['male','female']

@@ -85,12 +85,23 @@ class HairModelingHDCalSolver(BaseSolver):
 
 
     def preprocess_input(self,datas):
+        """_summary_
+
+        Args:
+            datas (_type_): _description_
+
+        Returns:
+            calibration: 体素空间到裁剪空间的变换矩阵
+        """        
         image = datas['image'].type(torch.float)
         gt_orientation = datas['gt_ori'].type(torch.float)
         gt_occ=datas['gt_occ']
         Ori2D = datas['Ori2D'].type(torch.float)
         add_info=datas['add_info'].type(torch.float)
         depth = datas['depth'].type(torch.float)
+        calibration = datas['calibration'].type(torch.float)
+        voxel2mesh_matrix = datas['voxel2mesh_matrix'].type(torch.float)
+        calibration = calibration@voxel2mesh_matrix
         if self.use_gpu():
             image = image.cuda()
             gt_orientation = gt_orientation.cuda()
@@ -98,7 +109,8 @@ class HairModelingHDCalSolver(BaseSolver):
             Ori2D = Ori2D.cuda()
             add_info=add_info.cuda()
             depth=depth.cuda()
-        return image,gt_orientation,gt_occ,Ori2D,add_info,depth
+            calibration = calibration.cuda()
+        return image,gt_orientation,gt_occ,Ori2D,add_info,depth,calibration
 
 
 
@@ -115,7 +127,7 @@ class HairModelingHDCalSolver(BaseSolver):
                 self.init_losses()
                 iter_counter.record_one_iteration()
 
-                image,gt_orientation,gt_occ,Ori2D,add_info,depth= self.preprocess_input(datas)#ori.png(orientation map),(size,3,96,128,128),(size,1,96,128,128),
+                image,gt_orientation,gt_occ,Ori2D,add_info,depth,calibration= self.preprocess_input(datas)#ori.png(orientation map),(size,3,96,128,128),(size,1,96,128,128),
                 # save_image(add_info,'test.png')
                 # unsample = torch.nn.Upsample(scale_factor=self.opt.resolution[0]//96, mode='trilinear')
                 # gt_occ_low=gt_occ.clone()
@@ -123,7 +135,8 @@ class HairModelingHDCalSolver(BaseSolver):
                 # gt_occ=unsample(gt_occ)
 
 
-                out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, depth_map=depth,resolution=self.opt.resolution)
+                out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global= \
+                self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, calibration=calibration, depth_map=depth,resolution=self.opt.resolution)
 
                 self.loss_backward(self.loss_global,self.optimizer_global,mix=False)
                 # self.loss_backward(self.loss_global,self.optimizer_local)

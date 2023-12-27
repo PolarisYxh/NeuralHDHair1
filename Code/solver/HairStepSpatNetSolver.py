@@ -1,3 +1,4 @@
+# 想使用hairstep的场生成网络训练
 from solver.base_solver import BaseSolver
 from Models.HairSpatNet import HairSpatNet
 from Loss.loss import lovasz_hinge,uniform_sample_loss,probability_sample_loss,binary_cross_entropy,compute_gradient_penalty

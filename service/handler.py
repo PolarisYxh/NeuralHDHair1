@@ -11,6 +11,8 @@ from skimage import transform
 from threading import Thread
 import requests
 import queue
+import struct
+import base64
 def readjson(file):
     with open(file, 'r', encoding="utf-8") as load_f:
         load_dict = json.load(load_f)
@@ -58,7 +60,7 @@ class Handler(object):
         self.app = strand_inference(os.path.join(os.path.dirname(__file__),"../"),use_modeling=load_dict['use_modeling'],\
                                     use_hd=load_dict['use_hd'],use_step=load_dict['use_step'],\
                                     use_ori_addinfo=load_dict['use_ori_addinfo'], use_strand=load_dict['use_strand'],\
-                                    Bidirectional_growth=True,gpu_ids=load_dict['gpus'], HairFilterLocal=True)
+                                    Bidirectional_growth=True,gpu_ids=load_dict['gpus'], HairFilterLocal=False)
         self.cache_path = os.path.join(rFolder,'cache')
         if not load_dict['use_modeling']:
             self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
@@ -124,6 +126,7 @@ class Handler(object):
             os.system(f'echo \"Handler fail ... reqCode: {reqCode} , {traceback.format_exc()}\" >> cache/{reqCode}_service_log.log')
 
         finally:
+            # writejson("test.json",response_data)
             logging.info(f'Handler end, reqCode: {reqCode}.')
             return response_data
 
@@ -138,8 +141,21 @@ class Handler(object):
         # m = transform.SimilarityTransform(scale=[0.82,0.75,0.8],translation=[0,-1.2737,-0.033233],dimensionality=3)#将blender的变换y,z互换后z取反，
         # v0.7版本的female_halfbody_medium_join.obj对齐到unity人脸模型
         points = np.array(points).reshape([-1,3])
-        points = transform.matrix_transform(points,self.m.params)
-        return points.tolist(),segments.tolist(),colors.tolist()
+        points = transform.matrix_transform(points,self.m.params).astype('float32')
+        
+        # 将字节对象编码为Base64字符串  
+        bytes_array = points.tobytes()  
+        points = base64.b64encode(bytes_array).decode('utf-8') 
+        # bytes_array = segments.tobytes() 
+        # segments = base64.b64encode(bytes_array).decode('utf-8') 
+        
+        # 将字节对象编码为bytes字符串
+        # points=struct.pack('f'*3*len(points),*points.reshape((-1)).flatten())
+        # points=str(points)
+        # segments=struct.pack('i'*len(segments),*segments.reshape((-1)).flatten())
+        # segments = str(segments)
+        
+        return points,segments.tolist(),colors.tolist()
 
     def stop(self):
         self.is_running = False

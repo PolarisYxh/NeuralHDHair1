@@ -49,7 +49,7 @@ class segmentAllInterface:
     def request_faceParsing(self, reqCode, mode, imgB64, point_coords, point_labels, is_test=False):
         url = f"{self.url}/{mode}"
         print(url,reqCode)
-        post_data = {"reqCode": reqCode,  "imgFile": imgB64, "point_coords": point_coords.tolist(), "point_labels": point_labels}
+        post_data = {"reqCode": reqCode,  "imgFile": imgB64, "point_coords": point_coords.tolist(), "point_labels": point_labels.tolist()}
 
         if is_test:
             post_data['is_test']=is_test

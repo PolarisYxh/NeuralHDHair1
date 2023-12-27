@@ -11,7 +11,7 @@
     "port": 50086,
     "device":"cuda",
     "//":"device为cuda时，更改使用的gpu编号，device为cpu不影响",
-    "gpus":[0],
+    "gpus":[2],
     "//":"使用自己训练的网络得到初步的身体分割图和头发方向图，否则使用faceparsing分割得到身体和头发分割图",
     "use_step":true,
     "//":"使用segment anything作为精确分割算法,必选true",

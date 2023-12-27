@@ -6,6 +6,7 @@ from solver.HairSpatNetSolver import HairSpatNetSolver
 from solver.HairModelingHDSolver import HairModelingHDSolver
 from solver.HairModelingHDCalSolver import HairModelingHDCalSolver
 from solver.StepNetSolver import StepNetSolver
+from solver.OriginStepNetSolver import OriginStepNetSolver
 from dataload import data_loader
 import os
 import platform
@@ -37,8 +38,13 @@ if __name__ == '__main__':
         test_dataloader=data_loader(opt)
         g_slover=StepNetSolver()
         opt.isTrain=True
+    elif opt.model_name=="OriginStepNet":
+        opt.isTrain=False
+        test_dataloader=data_loader(opt)
+        g_slover=OriginStepNetSolver()
+        opt.isTrain=True
     g_slover.initialize(opt)
-    if opt.model_name=="StepNet" or opt.model_name=="HairSpatNet":
+    if opt.model_name=="StepNet" or opt.model_name=="HairSpatNet" or opt.model_name=="OriginStepNet":
         g_slover.train(iter_counter,dataloader,test_dataloader,visualizer)
     else:
         g_slover.train(iter_counter,dataloader,visualizer)

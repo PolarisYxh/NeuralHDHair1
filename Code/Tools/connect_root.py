@@ -123,7 +123,7 @@ class find_root:
         # Compute some SDF values (negative outside);
         # takes a (num_points, 3) array, converts automatically
         
-    def getNewRoot(self,points,connect=False):#目前连接以后更不好看了
+    def getNewRoot(self,points,points0,segments,connect=False):#目前连接以后更不好看了
         #参考论文：Modeling Hair from an RGB-D Camera
         que = np.array(points)
         dir = que[:,0]-que[:,1]
@@ -197,9 +197,12 @@ class find_root:
             inside_index = np.where(l1[:,0]>=1e-5) #在头皮里面了
 
             que = np.insert(que, 0, new_root, axis=1)
+            end = len(points0)
+            for i,idx in enumerate(segments[::-1]):
+                points0 = np.concatenate((points0[:idx], [new_root[-(i+1)]], points0[idx:]))
             que[inside_index,0]=que[inside_index,1]
-        
-        return que
+            segments=np.array(segments)+np.array(list(range(0,len(segments)))
+        return que,points0,segments
 if __name__=="__main__":
     import numpy as np
     import os
