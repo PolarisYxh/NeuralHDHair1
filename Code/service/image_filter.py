@@ -56,7 +56,7 @@ class filter_crop:
         if use_strand:
             self.strandmodel = strandModel().cuda()
             # self.strandmodel = torch.nn.DataParallel(self.strandmodel)
-            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand.pth")))
+            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-267000.pth")))#
             self.strandmodel.eval()
         self.use_depth = use_depth
         if use_depth:
@@ -126,13 +126,14 @@ class filter_crop:
             crop_image = Variable(torch.from_numpy(crop_image).permute(2, 0, 1).float().unsqueeze(0)).cuda()
             strand_pred = self.strandmodel(crop_image)
             strand_pred = np.clip(strand_pred.permute(0, 2, 3, 1)[0].cpu().detach().numpy(), 0., 1.)  # 512 * 512 *60
+            # cv2.imwrite(image_name.split('.')[0]+"_parse.png",(strand_pred*255).astype('uint8'))
             strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
             strand2d[:,:,1:3]=strand_pred
             strand2d[:,:,1]=1-strand2d[:,:,1]
             strand2d[:,:,2]=1-strand2d[:,:,2]
             strand2d[mask1==0]=[0,0,0]
             strand2d=(strand2d*255).astype('uint8')
-            # cv2.imwrite(image_name.split('.')[0]+"_parse.png",strand2d)
+            cv2.imwrite(image_name.split('.')[0]+"_parse.png",strand2d)
             avg_color=np.append(avg_color,255)
             return strand2d,bust,avg_color,crop_image2,self.revert_rot
             # strand_pred = np.concatenate([mask+body*0.5, strand_pred*mask], axis=-1)

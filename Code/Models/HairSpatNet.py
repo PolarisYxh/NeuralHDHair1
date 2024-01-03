@@ -108,13 +108,14 @@ class HairSpatNet(BaseNetwork):
         x = torch.range(x_min, x_max)
         z = torch.range(z_min, z_max)
         X, Y, Z = torch.meshgrid([x, y, z])
-        self.test_points = torch.cat([X[..., None], Y[..., None], Z[..., None]], dim=3).cuda()
-        self.test_points = self.test_points.reshape(-1, 3)
+        self.test_voxel_points = torch.cat([X[..., None], Y[..., None], Z[..., None]], dim=3).cuda()
+        self.test_voxel_points = self.test_voxel_points.reshape(-1, 3)
         # self.test_points += 0.5
 
 
-        self.test_points /= torch.tensor([W-1 , H-1 , D-1],dtype=torch.float).cuda()
-        self.test_points=self.test_points[None]    ###### HWD   [0,1]
+        self.test_clip_points = self.test_voxel_points/torch.tensor([W-1 , H-1 , D-1],dtype=torch.float).cuda()# HWD
+        self.test_voxel_points=self.test_voxel_points[None][:, :, [1, 0, 2]]
+        self.test_clip_points=self.test_clip_points[None]    ###### HWD   [0,1]
     def to_mesh(self,scale=1):
 
         stepInv = 1. / (0.00567194/scale)
@@ -287,8 +288,8 @@ class HairSpatNet(BaseNetwork):
 
             loss_ori=l1_loss((self.gt_ori-ori*self.gt_occ)*self.loss_weight)/max(torch.sum(self.loss_weight),1.0)
             loss_occ=l1_loss((self.gt_occ-occ)*self.loss_weight)/max(torch.sum(self.loss_weight),1.0)
-            self.point_convert_to_voxel(self.clip_points,ori,mode='ori',calibration=calibration)
-            self.point_convert_to_voxel(self.clip_points,occ,mode='occ',calibration=calibration)
+            self.point_convert_to_voxel(self.clip_points,ori,mode='ori',is_voxel=True)
+            self.point_convert_to_voxel(self.clip_points,occ,mode='occ',is_voxel=True)
 
             return self.out_ori,self.out_occ,loss_ori,loss_occ
 
@@ -297,7 +298,7 @@ class HairSpatNet(BaseNetwork):
 
 
 
-    def test(self,image,Ori2D,resolution=[96,128,128],step=100000,depth_map=None):
+    def test(self,image,Ori2D,resolution=[96,128,128],calibration=None,step=100000,depth_map=None):
         caches=self.encoder(image)
         self.out_ori = torch.zeros(1, 3, *resolution).cuda()
         self.out_occ = torch.zeros(1, 1, *resolution).cuda()
@@ -305,19 +306,19 @@ class HairSpatNet(BaseNetwork):
         self.phi_ori=[]
         self.sample_test_point(Ori2D,resolution=resolution)
 
-        n=self.test_points.size(1)//step+1
+        n=self.test_clip_points.size(1)//step+1
         if not self.opt.no_use_depth:
-            self.get_depth_feat1(depth_map,self.test_points)
+            self.get_depth_feat1(depth_map,self.test_clip_points)
             depth = self.depth_feat
         else:
             depth = None
 
         for i in range(n):
-            ori,phi_ori=self.decoder_ori(caches,self.test_points[:, step * i:min(step * (i + 1), self.test_points.size(1))],depth= depth[:,:,step * i:min(step * (i + 1), self.test_points.size(1))] if depth is not None else None)
-            occ,phi_occ=self.decoder_occ(caches,self.test_points[:, step * i:min(step * (i + 1), self.test_points.size(1))],depth=depth[:,:,step * i:min(step * (i + 1), self.test_points.size(1))] if depth is not None else None)
+            ori,phi_ori=self.decoder_ori(caches,self.test_clip_points[:, step * i:min(step * (i + 1), self.test_clip_points.size(1))],depth= depth[:,:,step * i:min(step * (i + 1), self.test_points.size(1))] if depth is not None else None)
+            occ,phi_occ=self.decoder_occ(caches,self.test_clip_points[:, step * i:min(step * (i + 1), self.test_clip_points.size(1))],depth=depth[:,:,step * i:min(step * (i + 1), self.test_points.size(1))] if depth is not None else None)
             ori = pixel_norm(ori)
-            self.point_convert_to_voxel(self.test_points[:, step * i:min(step * (i + 1), self.test_points.size(1))], ori,'ori')
-            self.point_convert_to_voxel(self.test_points[:, step * i:min(step * (i + 1), self.test_points.size(1))], occ,'occ')
+            self.point_convert_to_voxel(self.test_voxel_points[:, step * i:min(step * (i + 1), self.test_voxel_points.size(1))], ori,'ori',is_voxel=True)
+            self.point_convert_to_voxel(self.test_voxel_points[:, step * i:min(step * (i + 1), self.test_voxel_points.size(1))], occ,'occ',is_voxel=True)
             self.phi_occ.append(phi_occ.cpu())
             self.phi_ori.append(phi_ori.cpu())
 
@@ -328,7 +329,7 @@ class HairSpatNet(BaseNetwork):
 
         return self.out_ori,self.out_occ
 
-    def point_convert_to_voxel(self, points, res,mode,calibration=None):#points:[1, 320000, 3]
+    def point_convert_to_voxel(self, points, res,mode,is_voxel=True):#points:[1, 320000, 3]
         # if isinstance(calibration,torch.Tensor):
         #     # points = points[:, :, [1, 0, 2]].permute((0,2,1))#[1, 3, 63149] ,3个维度代表W, H, D
         #     # points[:,1,:]=-points[:,1,:]
@@ -337,7 +338,12 @@ class HairSpatNet(BaseNetwork):
         # else:
         #     D,H,W=self.out_ori.size()[2:]
         #     index = points * torch.tensor([H-1., W-1., D-1.]).cuda()
-        index = self.voxel_points[:, :, [1, 0, 2]]
+        # index = self.voxel_points[:, :, [1, 0, 2]]
+        if is_voxel:
+            index = points[:, :, [1, 0, 2]]
+        else:
+            D, H, W = self.out_ori.size()[2:]
+            index = points * torch.tensor([H - 1., W - 1., D - 1.]).cuda()
         # index = points
         index=torch.round(index)
         index = index.type(torch.long)

@@ -145,8 +145,8 @@ class Local_Filter(BaseNetwork):
                 self.loss_local['loss_ori_hd'] = l1_loss((self.gt_ori - ori * self.gt_occ)*self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
                 self.loss_local['loss_occ_hd'] = l1_loss((self.gt_occ - occ) * self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
 
-        self.point_convert_to_voxel(net_global.voxel_points, ori, mode='ori')
-        self.point_convert_to_voxel(net_global.voxel_points, occ, mode='occ')
+        self.point_convert_to_voxel(net_global.voxel_points, ori, mode='ori',is_voxel=True)
+        self.point_convert_to_voxel(net_global.voxel_points, occ, mode='occ',is_voxel=True)
         return self.out_ori,self.out_occ,out_ori_low,out_occ_low,self.loss_local,self.loss_global
         # return out_ori_low,self.out_occ,out_ori_low,out_occ_low,self.loss_local,self.loss_global
 
@@ -171,7 +171,8 @@ class Local_Filter(BaseNetwork):
         # pred_ori=pred_ori.reshape(H ,W,C*D)
         # show(pred_ori,scale=1)
 
-        points=net_global.test_points
+        points=net_global.test_clip_points
+        test_voxel_points=net_global.test_voxel_points
         # with autocast(dtype=torch.float16):
         #     points = points.to(torch.float16)
         #     depth = depth.to(torch.float16)
@@ -185,16 +186,26 @@ class Local_Filter(BaseNetwork):
             end=min(step*(i+1),points.size(1))
             self.query(points[:,start:end],feat_ori[...,start:end].detach(),feat_occ[...,start:end].detach())
             ori, occ = self.get_pred()
-            self.point_convert_to_voxel(points[:,start:end], ori, mode='ori')
-            self.point_convert_to_voxel(points[:,start:end], occ, mode='occ')
+            self.point_convert_to_voxel(test_voxel_points[:,start:end], ori, mode='ori',is_voxel=True)
+            self.point_convert_to_voxel(test_voxel_points[:,start:end], occ, mode='occ',is_voxel=True)
 
         return self.out_ori,self.out_occ,out_ori_low,out_occ_low
         # return out_ori_low,self.out_occ,out_ori_low,out_occ_low
 
-    def point_convert_to_voxel(self, points, res, mode):
-        # D, H, W = self.out_ori.size()[2:]
-        # index = points * torch.tensor([H - 1., W - 1., D - 1.]).cuda()
-        index = points[:, :, [1, 0, 2]]
+    def point_convert_to_voxel(self, points, res, mode,is_voxel=True):
+        """_summary_
+
+        Args:
+            points (_type_): _description_
+            res (_type_): _description_
+            mode (_type_): _description_
+            is_voxel (bool, optional): points是否为体素空间的点. Defaults to True.
+        """        
+        if is_voxel:
+            index = points[:, :, [1, 0, 2]]
+        else:
+            D, H, W = self.out_ori.size()[2:]
+            index = points * torch.tensor([H - 1., W - 1., D - 1.]).cuda()
         # index = points
         index = torch.round(index)
         index = index.type(torch.long)
