@@ -108,7 +108,8 @@ class BaseOptions():
 
         expr_dir = os.path.join(opt.current_path, opt.save_root,opt.name,'logs')
         if makedir:
-            utils.mkdirs(expr_dir)
+            os.makedirs(expr_dir,exist_ok=True)
+            # utils.mkdirs(expr_dir)
         file_name = os.path.join(expr_dir, 'opt')
         return file_name
 

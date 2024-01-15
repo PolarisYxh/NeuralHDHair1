@@ -94,5 +94,82 @@ class Model(nn.Module):
         return self.pred(O4)
 
 if __name__ == '__main__':
-    from torchsummary import summary
-    summary(Model(),(3,512,512),device='cpu')
+    # from torchsummary import summary
+    # summary(Model(),(3,512,512),device='cpu')
+    import cv2
+    from torch.autograd import Variable
+    import numpy as np
+    import os
+    strandmodel = Model().cuda()
+    # self.strandmodel = torch.nn.DataParallel(self.strandmodel)
+    strandmodel.load_state_dict(torch.load("/home/algo/yangxinhang/NeuralHDHair/checkpoints/img2strand.pth"))#-267000
+    strandmodel.eval()
+    #strand_map：B:[0,1][向右，向左]；G：[0,1][向上，向下]；R（第三通道）：128身体，255头发
+    
+    #neuralhd R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
+    
+    # #strand_map图片转为NeuralHd格式保存到strand_map1文件夹下
+    
+    # dirs = "/nvme0/yangxinhang/HiSa_HiDa/strand_map"
+    # files = os.listdir(dirs)
+    # os.makedirs("/nvme0/yangxinhang/HiSa_HiDa/strand_map1",exist_ok=True)
+    # for x in files: 
+    #     crop_image = cv2.imread(os.path.join(dirs,x))
+    #     crop_image[:,:,2] = 0
+    #     area = np.sum(crop_image,axis=-1)
+    #     strand2d = np.zeros((crop_image.shape[0],crop_image.shape[1],3))
+    #     strand2d[:,:,1]=255-crop_image[:,:,1]
+    #     strand2d[:,:,2]=255-crop_image[:,:,0]
+    #     strand2d[area==0]=[0,0,0]
+    #     # crop_image[:,:,2]=2
+    #     cv2.imwrite(os.path.join("/nvme0/yangxinhang/HiSa_HiDa/strand_map1",x),strand2d)
+    
+    ## 测试img2strand模型效果
+    dirs = "/nvme0/yangxinhang/HiSa_HiDa/img"
+    save_dir = "/nvme0/yangxinhang/HiSa_HiDa/strand_map_pred0"
+    os.makedirs(save_dir,exist_ok=True)
+    files = os.listdir(dirs)
+    for x in files: 
+        crop_image = cv2.imread(os.path.join(dirs,x))
+        crop_image = crop_image/255
+        crop_image = Variable(torch.from_numpy(crop_image).permute(2, 0, 1).float().unsqueeze(0)).cuda()
+        strand_pred = strandmodel(crop_image)
+        strand_pred = np.clip(strand_pred.permute(0, 2, 3, 1)[0].cpu().detach().numpy(), 0., 1.)
+        # strand_pred[strand_pred[:,:,2]!=0]=[0,0,0]
+        strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
+        strand2d[:,:,1:3]=strand_pred
+        strand2d[:,:,1]=1-strand2d[:,:,1]
+        strand2d[:,:,2]=1-strand2d[:,:,2]
+        # strand2d[mask1==0]=[0,0,0]
+        strand2d=(strand2d*255).astype('uint8')
+        
+        target = np.zeros_like(strand2d)
+        mask = cv2.imread(os.path.join(dirs,"../seg",x))
+        # color = cv2.imread('DB2-1 (2).png')
+        # area = np.where((color[:,:,0]==0) & ((color[:,:,1]!=0) | (color[:,:,2]!=0)))
+        area = np.where(mask>127)
+        target[area]=strand2d[area]
+        # cv2.imwrite("1_parse_0.png",strand2d)
+        cv2.imwrite(os.path.join(save_dir,x),target)
+    
+   
+    # crop_image = cv2.imread('/home/algo/yangxinhang/NeuralHDHair/data/test/20231219_203605_manual.png')
+    # crop_image = crop_image/255
+    # crop_image = Variable(torch.from_numpy(crop_image).permute(2, 0, 1).float().unsqueeze(0)).cuda()
+    # strand_pred = strandmodel(crop_image)
+    # strand_pred = np.clip(strand_pred.permute(0, 2, 3, 1)[0].cpu().detach().numpy(), 0., 1.)
+    # # strand_pred[strand_pred[:,:,2]!=0]=[0,0,0]
+    # strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
+    # strand2d[:,:,1:3]=strand_pred
+    # strand2d[:,:,1]=1-strand2d[:,:,1]
+    # strand2d[:,:,2]=1-strand2d[:,:,2]
+    # # strand2d[mask1==0]=[0,0,0]
+    # strand2d=(strand2d*255).astype('uint8')
+    
+    # target = np.zeros_like(strand2d)
+    # color = cv2.imread('DB2-1 (2).png')
+    # area = np.where((color[:,:,0]==0) & ((color[:,:,1]!=0) | (color[:,:,2]!=0)))
+    
+    # target[area]=strand2d[area]
+    # cv2.imwrite("1_parse_1.png",strand2d)
+    

@@ -99,7 +99,7 @@ class Local_Filter(BaseNetwork):
 
 
 
-    def forward(self, image,strand2D,gt_occ,gt_ori,net_global,calibration=None,resolution=[96*4,128*4,128*4],depth_map=None,train_global=True):
+    def forward(self, image,strand2D,gt_occ,gt_ori,net_global,calibration=None,resolution=[96*4,128*4,128*4],depth_map=None,train_global=True,mix=True):
         self.loss_global={}
         self.loss_local={}
         D,H,W=resolution
@@ -133,7 +133,19 @@ class Local_Filter(BaseNetwork):
 
 
             # print(strand2D.size())
-            with autocast(dtype=torch.float16):
+            if mix:
+                with autocast(dtype=torch.float16):
+                    if self.opt.use_add_info and self.opt.use_ori_addinfo:
+                        self.im_feat_list,_ = self.image_filter(image)
+                    elif self.opt.use_add_info:
+                        self.im_feat_list,_ = self.image_filter(strand2D)
+                    self.query(clip_points,feat_ori.detach(),feat_occ.detach())
+
+                    ori,occ=self.get_pred()
+
+                    self.loss_local['loss_ori_hd'] = l1_loss((self.gt_ori - ori * self.gt_occ)*self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
+                    self.loss_local['loss_occ_hd'] = l1_loss((self.gt_occ - occ) * self.loss_weight) / max(torch.sum(self.loss_weight), 1.0)
+            else:
                 if self.opt.use_add_info and self.opt.use_ori_addinfo:
                     self.im_feat_list,_ = self.image_filter(image)
                 elif self.opt.use_add_info:

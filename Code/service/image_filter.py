@@ -103,7 +103,7 @@ class filter_crop:
             # crop_image=(crop_image*255).astype('uint8')
             # cv2.imwrite("1.png",(crop_image*255).astype('uint8'))
             avg_color=np.append(avg_color,255)
-            return crop_image,bust,avg_color,image,self.revert_rot
+            return crop_image,bust,avg_color,image,self.revert_rot,self.cam_intri,self.cam_extri
         if self.use_strand:
             crop_image= cv2.resize(crop_image,(512,512))
             mask1 = cv2.cvtColor(crop_image,cv2.COLOR_RGB2GRAY)
@@ -126,16 +126,15 @@ class filter_crop:
             crop_image = Variable(torch.from_numpy(crop_image).permute(2, 0, 1).float().unsqueeze(0)).cuda()
             strand_pred = self.strandmodel(crop_image)
             strand_pred = np.clip(strand_pred.permute(0, 2, 3, 1)[0].cpu().detach().numpy(), 0., 1.)  # 512 * 512 *60
-            # cv2.imwrite(image_name.split('.')[0]+"_parse.png",(strand_pred*255).astype('uint8'))
             strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
             strand2d[:,:,1:3]=strand_pred
             strand2d[:,:,1]=1-strand2d[:,:,1]
             strand2d[:,:,2]=1-strand2d[:,:,2]
             strand2d[mask1==0]=[0,0,0]
             strand2d=(strand2d*255).astype('uint8')
-            cv2.imwrite(image_name.split('.')[0]+"_parse.png",strand2d)
+            # cv2.imwrite(image_name.split('.')[0]+"_ori2.png",strand2d)
             avg_color=np.append(avg_color,255)
-            return strand2d,bust,avg_color,crop_image2,self.revert_rot
+            return strand2d,bust,avg_color,crop_image2,self.revert_rot,self.cam_intri,self.cam_extri
             # strand_pred = np.concatenate([mask+body*0.5, strand_pred*mask], axis=-1)
         import pyfilter#have to install apt-get install libopencv-dev==4.2.0 and run in python 3.8.*
         avg_color,image1=self.get_hair_avgcolor(img1,crop_image)
@@ -158,7 +157,7 @@ class filter_crop:
         avg_color=np.append(avg_color,255)
         # cv2.imshow("2",ori2D)
         # cv2.waitKey()
-        return ori2D,mask,avg_color,image1,self.revert_rot
+        return ori2D,mask,avg_color,image1,self.revert_rot,self.cam_intri,self.cam_extri
     def get_hair_avgcolor1(self,img,mask):
         parse = mask[:, :, 2]
         mask1=mask[:, :, [0, 1]]
@@ -206,6 +205,17 @@ class filter_crop:
         self.body.vertices = np.dot(vertices,rot_matrix)+center
         m=[]
         _,bust,img2 = render_strand([[]],[],self.body,orientation=[],intensity=3,matrix=m,mask=True)
+        # calculate cam intrinsic and cam extrinsic
+        self.cam_intri = m[1]
+        x1=trans.SimilarityTransform(translation=-center,dimensionality=3).params
+        x2=trans.SimilarityTransform(translation=center,dimensionality=3).params
+        four_by_four = np.eye(4)  
+        four_by_four[:3, :3] = rot_matrix 
+        four_by_four[:-1, -1] = 0  
+        four_by_four[-1, :-1] = 0  
+        four_by_four[-1, -1] = 1  
+        self.cam_extri = m[2]@x2@four_by_four@x1
+        
         # cv2.imshow("1",bust)
         # cv2.waitKey() 
         self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])

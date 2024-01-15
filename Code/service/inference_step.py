@@ -39,12 +39,14 @@ if __name__=="__main__":
     hair_infe = step_inference(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     save_path = "/home/yxh/Documents/company/NeuralHDHair/data/test/out/"
     for g in gender:
-        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
-        test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img"
-        file_names = os.listdir(test_dir)
+        # test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/test/{g}"
+        # test_dir = f"/home/yxh/Documents/company/NeuralHDHair/data/Train_input1/img"
+        # file_names = os.listdir(test_dir)
+        file_names = ['/home/algo/yangxinhang/NeuralHDHair/data/test/20231219_203605_manual.png']
         for name in tqdm(file_names[:]):#:32
-            # name = "10_f.png"
-            test_file = os.path.join(test_dir,name)
+            # name = "10_f.png"test_dir,
+            test_file = os.path.join(name)
             img = cv2.imread(test_file)
-            cv2.imwrite(os.path.join(save_path, name),img)
-            hair_infe.inference(img)
+            # cv2.imwrite(os.path.join(save_path, name),img)
+            x=hair_infe.inference(img)
+            cv2.imwrite("1.png",x)

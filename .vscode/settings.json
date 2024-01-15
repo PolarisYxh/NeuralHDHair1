@@ -1,0 +1,5 @@
+{
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "${workspaceRoot}/NeuralHaircut:${workspaceRoot}/Code:${workspaceRoot}:${env:PYTHONPATH}"
+    }
+}

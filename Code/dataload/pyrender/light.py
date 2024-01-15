@@ -7,7 +7,7 @@ import abc
 import numpy as np
 import six
 
-from OpenGL.GL import *
+from OpenGL.GL import *#conda install pyopengl
 
 from .utils import format_color_vector
 from .texture import Texture

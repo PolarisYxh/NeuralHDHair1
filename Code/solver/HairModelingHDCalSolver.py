@@ -46,25 +46,29 @@ class HairModelingHDCalSolver(BaseSolver):
 
         self.net_global.print_network()
         self.net_local.print_network()
+        print("save model to dir:"+os.path.join(opt.current_path,opt.save_root, opt.name,'checkpoint'))
+        print("------------------------------------loading model")
         if not opt.no_use_pretrain:
             path=os.path.join(opt.current_path, opt.save_root, opt.pretrain_path)
             self.net_global=self.load_network(self.net_global,'HairSpatNet',opt.which_iter,opt,specify_path=path)
+            print(path)
         else:
             self.net_global.init_weights(opt.init_type, opt.init_variance)
         if opt.continue_train or opt.isTrain is False:
             path = os.path.join(opt.current_path, opt.save_root, opt.check_name, 'checkpoint')
+            print(f"---------------------------load model from {path}")
             if os.path.exists(path):
+                print("---------------------------path exists")
                 self.net_global = self.load_network(self.net_global, 'HairModelingGlobal', opt.which_iter, opt)
                 self.net_local = self.load_network(self.net_local, 'HairModelingLocal', opt.which_iter, opt)
+                print(os.path.join(path,'%s_%s.pth' % ('HairModelingGlobal', opt.which_iter)))
         else:
             print(" Training from Scratch! ")
             self.net_local.init_weights(opt.init_type, opt.init_variance)
-
         if len(opt.gpu_ids) > 0:
             import torch.nn as nn
             assert (torch.cuda.is_available())
             # torch.cuda.set_device(opt.gpu_ids[0])
-            print(torch.cuda.current_device())
             # self.net_global=nn.DataParallel(self.net_global, device_ids=opt.gpu_ids)
             self.net_global=self.net_global.cuda()
             # self.net_local=nn.DataParallel(self.net_local, device_ids=opt.gpu_ids)
@@ -136,11 +140,11 @@ class HairModelingHDCalSolver(BaseSolver):
 
 
                 out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global= \
-                self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, calibration=calibration, depth_map=depth,resolution=self.opt.resolution)
+                self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, calibration=calibration, depth_map=depth,resolution=self.opt.resolution,mix=False)
 
                 self.loss_backward(self.loss_global,self.optimizer_global,mix=False)
                 # self.loss_backward(self.loss_global,self.optimizer_local)
-                self.loss_backward(self.loss_local,self.optimizer_local,mix=True)
+                self.loss_backward(self.loss_local,self.optimizer_local,mix=False)
 
 
                 visualizer.board_current_errors(self.loss_local)

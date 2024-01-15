@@ -87,7 +87,7 @@ class imageCal_loader(base_loader):
         y=random.randint(-30,30)
         # y=-y if random.randint(0,1)==1 else y
         ang = [y,x]
-        ang = [30,30]
+        # ang = [30,30]
         tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
         strand = trans.matrix_transform(strand, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
         self.mesh.vertices = trans.matrix_transform(self.orig_vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
@@ -124,20 +124,19 @@ class imageCal_loader(base_loader):
         image = get_conditional_input_data1(image, mask, False, True)
         cv2.imwrite(f"{file_name.split('/')[-1]}.png",(255*image).astype('uint8'))
         
-        # if not self.opt.no_use_bust: 
-        #     # 图片中加上标准人体深度图 引入位姿信息
-        #     oriImg1=np.zeros_like(mask)
-        #     oriImg1[mask!=255]=1
-        #     image[:,:,2]=image[:,:,2]+oriImg1*depth
-        #     image[:,:,1]=image[:,:,1]+oriImg1*depth
+        if not self.opt.no_use_bust: 
+            # 图片中加上标准人体深度图 引入位姿信息
+            oriImg1=np.zeros_like(mask)
+            oriImg1[mask!=255]=1
+            image[:,:,2]=image[:,:,2]+oriImg1*depth
+            image[:,:,1]=image[:,:,1]+oriImg1*depth
 
         image1 = image[:, :, [2, 1]].astype(np.float32)
         image1=torch.from_numpy(image1)
         image1=image1.permute(2,0,1)
         Ori2D = image1.clone()
-        # save_image(torch.cat([Ori2D.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], 'test.png')
-
         data_list['image']=image1
+        save_image(torch.cat([image1.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], 'test.png')
         depth=cv2.resize(depth,(self.opt.image_size,self.opt.image_size))
         depth=depth[:,:,None]
         if self.opt.use_HD or self.opt.input_nc==3:
@@ -160,9 +159,9 @@ class imageCal_loader(base_loader):
             depth_norm=depth_norm.permute(2,0,1)
             if self.opt.use_HD:
                 data_list['add_info']=depth_norm
-            if self.opt.input_nc==3:
-                image1=torch.cat([image1,depth_norm], dim=0)
-                data_list['image']=image1
+            # if self.opt.input_nc==3:
+            #     image1=torch.cat([image1,depth_norm], dim=0)
+            #     data_list['image']=image1
                 # save_image(image, 'depth.png')
 
         depth=torch.from_numpy(depth)

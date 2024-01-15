@@ -8,4 +8,6 @@
 /*.cin
 /*.data
 /*.obj
+/*.npy
 cache
+/NeuralHaircut

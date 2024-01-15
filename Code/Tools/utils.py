@@ -1139,6 +1139,19 @@ def mesh_to_voxel(points,scale=1):
     m = trans.SimilarityTransform(translation=[0, 128*scale*mul, 96*scale*mul],dimensionality=3).params@trans.SimilarityTransform(scale=[stepInv, -stepInv, -stepInv],dimensionality=3).params@trans.SimilarityTransform(translation=-gridOrg,dimensionality=3).params
     points1 = trans.matrix_transform(points,m) #352.61304
     return points1
+def mesh_to_voxel_torch(points,scale=1):
+    '''
+    :param points: 原始点云
+    :param scale:体素256*256时为2,128*128时为1
+    :return: 体素化的点云
+    '''
+    mul=1
+    stepInv = 1. / (0.00567194/scale/mul)#352.61303892495334 voxel 边长0.00567194 
+    gridOrg= np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
+    m = trans.SimilarityTransform(translation=[0, 128*scale*mul, 96*scale*mul],dimensionality=3).params@trans.SimilarityTransform(scale=[stepInv, -stepInv, -stepInv],dimensionality=3).params@trans.SimilarityTransform(translation=-gridOrg,dimensionality=3).params
+    points1=orthogonal(points.permute(1,0)[None],torch.from_numpy(m[None]).to(torch.float32).to(points.device))
+    # points1 = trans.matrix_transform(points,m) #352.61304
+    return points1
 def voxel_to_mesh(points,scale=1):
     '''
     :param points: 原始点云

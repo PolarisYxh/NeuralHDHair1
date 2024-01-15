@@ -65,6 +65,7 @@ class BaseSolver(nn.Module):
             save_dir = os.path.join(opt.current_path,opt.save_root, opt.check_name,'checkpoint')
             save_path = os.path.join(save_dir, save_filename)
         logging.info(f'load weights from::{save_path}')
+        print(f'load weights from::{save_path}')
         weights = torch.load(save_path)
         self.load_weights(net, weights)
         return net

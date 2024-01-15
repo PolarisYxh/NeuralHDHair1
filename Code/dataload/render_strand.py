@@ -100,6 +100,8 @@ def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0
             # cv2.imshow("1",color)
             # cv2.waitKey()
     matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
+    matrix.append(pc.get_projection_matrix())
+    matrix.append(np.linalg.inv(scene.main_camera_node.matrix))
     r.delete()
     depth = depth/(96*0.00567194)
     # depth = depth.astype('uint8')

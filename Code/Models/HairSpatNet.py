@@ -113,8 +113,8 @@ class HairSpatNet(BaseNetwork):
         # self.test_points += 0.5
 
 
-        self.test_clip_points = self.test_voxel_points/torch.tensor([W-1 , H-1 , D-1],dtype=torch.float).cuda()# HWD
-        self.test_voxel_points=self.test_voxel_points[None][:, :, [1, 0, 2]]
+        self.test_clip_points = self.test_voxel_points/torch.tensor([H-1 , W-1 , D-1],dtype=torch.float).cuda()# HWD
+        self.test_voxel_points=self.test_voxel_points[None][:, :, [1, 0, 2]]# WHD   [0,1]
         self.test_clip_points=self.test_clip_points[None]    ###### HWD   [0,1]
     def to_mesh(self,scale=1):
 
@@ -126,7 +126,7 @@ class HairSpatNet(BaseNetwork):
         points += gridOrg
 
         return points
-    def sample_train_point(self, gt_occ, gt_ori, calibration=None, sample_negative=False, sample_ratio=0.01):
+    def sample_train_point(self, gt_occ, gt_ori, img1,calibration=None, sample_negative=False, sample_ratio=0.01):
         B, _, D, H, W = gt_occ.size()#[1, 1, 192, 256, 256]
         if sample_negative:#概率较大，0.7，因为会有一些场外的点参与训练
             with torch.no_grad():
@@ -189,19 +189,15 @@ class HairSpatNet(BaseNetwork):
             xyz = orthogonal(self.clip_points, calibration)#xyz:clip 空间
             xyz[:,1,:]=(-xyz[:,1,:])
             self.clip_points = xyz.permute((0,2,1))
-            # for debug
+            # # for visualize clip_points
             # xy = xyz[:, :2, :]
             # import cv2
-            # img = cv2.imread("DB1.png")
-            # xy[0,1]=-xy[0,1]#注意y方向上 必须取反
-            # img1 = torch.from_numpy(img).permute([2,0,1])/255
-            # # save_image(img1,"2.png")
+            # save_image(img1,"2.png")
             # depth_proj = self.index(img1.unsqueeze(0).cuda(), xy.permute((0,2,1)))
             # depth_proj1 = (depth_proj*255).cpu().numpy().astype('uint8').transpose((0,2,1))
             # y=np.all(depth_proj1[0]==[0,0,0],axis=-1)
             # x=np.where(np.all(depth_proj1[0]==[0,0,0],axis=-1)==True)
             # # show
-            # # img[np.all(img == (0,0,0), axis=-1)] = (255,255,255)  
             # x = (np.ones((1024,1024,3))*255).astype('uint8')
             # xy1=(xy*128+128).to(torch.int).permute((0,2,1)).cpu().numpy()
             # for i,p in enumerate(xy1[0]):
@@ -212,7 +208,7 @@ class HairSpatNet(BaseNetwork):
             # cv2.imwrite("1.png",x)
         else:
             self.clip_points = self.voxel_points/torch.tensor([W-1, H-1, D-1], dtype=torch.float).cuda()#self.voxel_points  voxels normalize
-        self.clip_points = self.clip_points[:, :, [1, 0, 2]]#points: H, W, D
+        self.clip_points = self.clip_points[:, :, [1, 0, 2]]#self.clip_points WHD变为 H, W, D
 
 
     def get_depth_feat(self,depth_map,points):
@@ -267,12 +263,12 @@ class HairSpatNet(BaseNetwork):
             self.out_occ=torch.zeros(B,1,D,H,W).cuda()
             if random.random()<0.7:#loss偏小
                 sample_negative=True
-                self.sample_train_point(gt_occ,gt_ori,calibration=calibration,sample_negative=True)
+                self.sample_train_point(gt_occ,gt_ori,x[0],calibration=calibration,sample_negative=True)
             else:#loss偏大
                 sample_negative=False
-                self.sample_train_point(gt_occ, gt_ori,calibration=calibration, sample_negative=False)
-            if depth_map is not None:
-                self.compute_weight(depth_map,self.clip_points,D,sample_negative)
+                self.sample_train_point(gt_occ, gt_ori,x[0],calibration=calibration, sample_negative=False)
+            # if depth_map is not None:
+            #     self.compute_weight(depth_map,self.clip_points,D,sample_negative)
             if not no_use_depth:
                 self.get_depth_feat1(norm_depth,self.clip_points)
                 depth=self.depth_feat
@@ -345,7 +341,7 @@ class HairSpatNet(BaseNetwork):
             D, H, W = self.out_ori.size()[2:]
             index = points * torch.tensor([H - 1., W - 1., D - 1.]).cuda()
         # index = points
-        index=torch.round(index)
+        index=torch.round(index)#index:HWD
         index = index.type(torch.long)
 
         x, y, z = torch.chunk(index, 3, -1)

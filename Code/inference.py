@@ -150,28 +150,29 @@ class strand_inference:
         # self.hd_solver=HairModelingHDSolver()
         # self.hd_solver.initialize(opt)
     @timeCost
-    def inference(self,image,gender="" ,name="",save_path="",use_gt=False,use_unity=False):
+    def inference(self,image,gender="" ,name="",save_path="",use_gt=False,use_unity=False,use_NeuralHaircut=True):
         self.opt.test_file = name.split('.')[0]
         if use_unity:
             reset()
         # set_camera()
         logging.info("enter strand2d")
         if  self.HairFilterLocal:
-            ori2D,bust,color,rgb_image,revert_rot = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
+            ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
         else:
             imgB64 = cvmat2base64(image)
-            ori2D,bust,color,rgb_image,revert_rot = self.img_filter.request_HairFilter(name,'img',imgB64)
+            ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.request_HairFilter(name,'img',imgB64)
         logging.info("leave strand2d,enter strand3d")
         # kernel = np.ones((3,3),np.uint8)
         # ori2D = cv2.erode(ori2D,kernel,iterations=1)
-        if self.use_step:
-            cv2.imwrite(f"{self.opt.test_file}_ori.png",(ori2D*255).astype('uint8'))
-            cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-            cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
-        else:
+        debug=True
+        if debug:
             cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
             cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
             cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
+            cv2.imwrite(f"{self.opt.test_file}_color.png",color)
+            np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
+            np.save(f"{self.opt.test_file}_cam_extri.npy",cam_extri)
         depth_norm = None
         if self.opt.input_nc==3 or self.use_depth:
             if not self.use_strand:
@@ -205,7 +206,7 @@ class strand_inference:
                 else:
                     orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=self.opt.test_file)
         else:
-            orientation,out_occ = self.ModelingHD_solver.inference(ori2D,use_step=self.use_step,bust=bust,norm_depth=depth_norm,name=name)
+            orientation,out_occ = self.ModelingHD_solver.inference(ori2D,use_step=self.use_step,bust=bust,norm_depth=depth_norm,name=name)#orientation:128*128*3*96
             if self.get_cartoon:
                 verts, faces, normals, values = measure.marching_cubes(out_occ[0,0].cpu().numpy().transpose((2,1,0)), 0.5)
                 verts = transform_Inv(verts,scale=2)
@@ -217,6 +218,67 @@ class strand_inference:
                 _,_,rgb = render_cartoon(hair_mesh,self.body,mesh_colors=np.array([177, 177, 177, 255]))
                 cv2.imwrite(f"{self.opt.test_file}.png",rgb)
                 return verts,faces,normals
+        np.save(f"{self.opt.test_file}_orientation.npy", orientation)
+        np.save(f"{self.opt.test_file}_occ.npy", out_occ.cpu().numpy())
+        use_NeuralHaircut = False
+        if use_NeuralHaircut:
+            import torch
+            # for debug growing net
+            ori2D = cv2.imread(f"{self.opt.test_file}_ori.png")
+            # cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            rgb_image = cv2.imread(f"{self.opt.test_file}_rgb.png")
+            # cv2.imwrite(f"{self.opt.test_file}_color.png",color)
+            revert_rot = np.load(f"{self.opt.test_file}_revert_rot.npy")
+            cam_intri = np.load(f"{self.opt.test_file}_cam_intri.npy")
+            cam_extri = np.load(f"{self.opt.test_file}_cam_extri.npy")
+            ori=np.load(f"{self.opt.test_file}_orientation.npy")
+            out_occ = np.load(f"{self.opt.test_file}_occ.npy")
+            
+            from NeuralHaircut.run_strands_optimization import Runner
+            runner = Runner("./configs/monocular/neural_strands_w_camera_fitted.yaml", "person_0","monocular",hair_conf_path="./configs/hair_strands_textured.yaml", exp_name="second_stage_person_0")
+            image = torch.from_numpy(rgb_image)
+            mask = cv2.cvtColor(rgb_image,cv2.RGB2GRAY)
+            mask[mask>0]=255
+            #ori:128*128*3*96
+            ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+            ori = ori.transpose([0, 1, 3, 2])# ori: 128*128*96*3
+
+            transfer = True
+            ori = np.ascontiguousarray(ori)
+            s = [ori.shape[0],ori.shape[1],ori.shape[2]]
+            scale=1
+            if s[0]==256:
+                scale=2
+            # 旋转方向场到正面
+            ori = np.transpose(ori, (1,0,2,3)) #ori :交换x,y轴到 128,128,96,3
+            ori = ori[::-1, :, :,  :]   #x轴flip已对应旋转矩阵方向
+            
+            from skimage import transform as trans
+            mask=np.linalg.norm(ori,axis=-1)#ori : 128,128,96,3
+            gt_occ=(mask>0).astype(np.float32)
+            mask1 = np.array(np.where(gt_occ>0))
+            gt_occ1=mask1.T-np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
+
+            new_gt_occ = np.dot(gt_occ1, revert_rot)+np.array([gt_occ.shape[0]/2,gt_occ.shape[1]/2,gt_occ.shape[2]/2])
+            new_gt_occ = new_gt_occ.T.astype('int')
+            
+            index = (new_gt_occ[2] >= 0) & (new_gt_occ[2] <= s[2]-1)&(new_gt_occ[0] >= 0) & (new_gt_occ[0] <= s[0]-1)&(new_gt_occ[1] >= 0) & (new_gt_occ[1] <= s[1]-1)
+            new_gt_occ = new_gt_occ[:,index]
+            mask1 = mask1[:,index]
+            ori1 = ori[tuple(mask1)]
+            new_ori1 = np.dot(ori1.reshape((-1,3)),revert_rot)
+            ori = np.zeros_like(ori)
+            ori[new_gt_occ[0],new_gt_occ[1],new_gt_occ[2]] = new_ori1
+            
+            ori = ori[::-1, :, :,  :]
+            ori = np.transpose(ori, (1,0,2,3)) 
+            
+            ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+            ori = ori.transpose([0, 1, 3, 2])
+            mask=np.linalg.norm(ori.reshape((ori.shape[0], ori.shape[1], -1, 3)),axis=-1)
+            gt_occ=(mask>0).astype(np.float32)
+            runner.train(image,mask,ori2D,ori,gt_occ,cam_extri,cam_intri)
+
         if not isinstance(orientation,np.ndarray) and orientation==None:
             return
         # for debug growing net
@@ -323,6 +385,7 @@ if __name__=="__main__":
     # verts, faces, normals, values = measure.marching_cubes(gt_occ.transpose((1,0,2)), 0.5)
     # verts = transform_Inv(verts,scale=ori.shape[0]//128)
     # hair_mesh = trimesh.Trimesh(vertices=verts,faces=faces, process=False)
+    # hair_mesh = trimesh.smoothing.filter_laplacian(hair_mesh, iterations=10)
     # hair_mesh.export(f"strands00001.obj")
     # _,_,rgb = render_cartoon(hair_mesh,body,mesh_colors=np.array([177, 177, 177, 255]))
     # cv2.imwrite(f"strands00001.png",rgb[...,:3])
@@ -339,7 +402,8 @@ if __name__=="__main__":
     for g in gender:
         test_dir = os.path.join(os.path.dirname(__file__),"../data/test/paper")
         file_names = os.listdir(test_dir)
-        for name in tqdm(file_names[25:]):#31:32，19
+        file_names = ['乔小刀.jpg']#,'img_0044.png'
+        for name in tqdm(file_names[:]):#31:32，19
             # name = "female_20.jpg"
             test_file = os.path.join(test_dir,name)
             img = cv2.imread(test_file)
