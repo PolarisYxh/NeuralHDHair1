@@ -89,7 +89,7 @@ def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0
         pyrender.Viewer(scene)
     else:
         colors = []
-        color, depth = r.render(scene, flags=flags)
+        color, depth = r.render(scene, flags=flags)#pyrender renderer.py line 1156 change depth:_read_main_framebuffer
         colors.append(color)
         # cv2.imshow("1",color)
         # cv2.waitKey()

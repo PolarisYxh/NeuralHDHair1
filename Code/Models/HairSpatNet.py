@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torchvision.utils import save_image
 from Tools.utils import position_encoding,orthogonal,perspective
 from torch.cuda.amp import autocast, GradScaler
-def draw_circles_by_projection(hair_occ,fileDir="", iter=0,draw_occ=True,name="1"):
+def draw_circles_by_projection(target0, hair_occ,fileDir="", iter=0,draw_occ=True,name="1"):
     import cv2
     import os
     h = 128
@@ -20,7 +20,7 @@ def draw_circles_by_projection(hair_occ,fileDir="", iter=0,draw_occ=True,name="1
    
    
     for d1 in range(d):
-        target = np.zeros((1024, 1024,3))
+        target = np.copy(target0)
         for hh in range(h):
             for ww in range(w):
                 if hair_occ[hh, ww,d1]:
@@ -230,6 +230,21 @@ class HairSpatNet(BaseNetwork):
         xy = (xy - 0.5) * 2
         z=points[:,:,2:3]*(D-1)
         z=z.permute(0,2,1)
+        #for visualize loss_weight
+        # uv=(xy*63+64).to(torch.int).cpu().numpy()[0].T
+        # uv=uv[[1,0]] #uv: H, W
+        # z1=z[0].to(torch.int).cpu().numpy()//2
+        # p = np.append(uv,z1,axis=0)
+        # hair_occ = np.zeros((128,128,96))
+        # hair_occ[tuple(p)]=(self.loss_weight[0]*5+2).to(torch.int).cpu().numpy()
+        # import cv2
+        # bgr_img = np.zeros((1024, 1024, 3), np.uint8)
+        # target = depth_map.cpu().numpy()[0].transpose((1,2,0))
+        # target = (cv2.resize(target,(1024,1024))*255).astype('uint8')
+        # bgr_img[:, :, 0] = target
+        # bgr_img[:, :, 1] = target
+        # bgr_img[:, :, 2] = target
+        # draw_circles_by_projection(bgr_img,hair_occ)
         # save_image(depth_map[0],"1.png")
         depth=self.index(depth_map, xy)*(D-1)
         rang = D/96
@@ -252,7 +267,14 @@ class HairSpatNet(BaseNetwork):
         # p = np.append(uv,z1,axis=0)
         # hair_occ = np.zeros((128,128,96))
         # hair_occ[tuple(p)]=(self.loss_weight[0]*5-1).to(torch.int).cpu().numpy()
-        # draw_circles_by_projection(hair_occ)
+        # import cv2
+        # bgr_img = np.zeros((1024, 1024, 3), np.uint8)
+        # target = depth_map.cpu().numpy()[0].transpose((1,2,0))
+        # target = (cv2.resize(target,(1024,1024))*255).astype('uint8')
+        # bgr_img[:, :, 0] = target
+        # bgr_img[:, :, 1] = target
+        # bgr_img[:, :, 2] = target
+        # draw_circles_by_projection(bgr_img,hair_occ)
 
     def forward(self,x,gt_occ,gt_ori,calibration=None,mode='generator',depth_map=None,norm_depth=None,no_use_depth=True):
         if mode=='generator':
@@ -267,8 +289,8 @@ class HairSpatNet(BaseNetwork):
             else:#loss偏大
                 sample_negative=False
                 self.sample_train_point(gt_occ, gt_ori,x[0],calibration=calibration, sample_negative=False)
-            # if depth_map is not None:
-            #     self.compute_weight(depth_map,self.clip_points,D,sample_negative)
+            if depth_map is not None:
+                self.compute_weight(depth_map,self.clip_points,D,sample_negative)
             if not no_use_depth:
                 self.get_depth_feat1(norm_depth,self.clip_points)
                 depth=self.depth_feat

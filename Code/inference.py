@@ -100,7 +100,7 @@ class strand_inference:
                 self.opt.which_iter=16512 # ori: LocalFilter line 16
                 self.opt.check_name="2023-10-26_addori"
             else:
-                self.opt.which_iter=700400 # 295840 测试过较好,但有时有空洞  667360 700400
+                self.opt.which_iter=295840 # 295840 测试过较好,但有时有空洞  667360 700400
                 self.opt.check_name="2023-07-31_rot_depth1"
                 
             self.opt.use_ori_addinfo=use_ori_addinfo
