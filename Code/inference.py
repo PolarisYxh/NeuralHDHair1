@@ -20,7 +20,6 @@ from util import cvmat2base64
 import logging
 from skimage import measure
 from Tools.utils import transform_Inv
-import trimesh
 class strand_inference:
     def __init__(self,rFolder,HairFilterLocal=False,use_modeling=False,use_ori_addinfo=False,use_hd=False,use_step=True,use_strand=False,Bidirectional_growth=False,gpu_ids=[],get_cartoon=False) -> None:
         """_summary_
@@ -100,7 +99,7 @@ class strand_inference:
                 self.opt.which_iter=16512 # ori: LocalFilter line 16
                 self.opt.check_name="2023-10-26_addori"
             else:
-                self.opt.which_iter=295840 # 295840 测试过较好,但有时有空洞  667360 700400
+                self.opt.which_iter=295840 # 295840 测试过较好,但有时有空洞  667360:； 700400:加入DB2、DB3以后训练的
                 self.opt.check_name="2023-07-31_rot_depth1"
                 
             self.opt.use_ori_addinfo=use_ori_addinfo
@@ -149,6 +148,79 @@ class strand_inference:
         # opt.model_name=='HairModeling'
         # self.hd_solver=HairModelingHDSolver()
         # self.hd_solver.initialize(opt)
+    def eval_ori2dtohair(self):
+        import torch
+        import numpy as np
+        has_orientation = True
+        has_ori2d=True
+        if has_ori2d:
+            pass
+            
+        if has_orientation:
+            occ=torch.load("/data/HairStrand/NeuralHDHairData/DB3/out_occ.pt")#get out_occ.pt from main.py by use gt hair model
+            orientation=torch.load("/data/HairStrand/NeuralHDHairData/DB3/out_ori.pt")
+            # verts, faces, normals, values = measure.marching_cubes(occ[0,0].cpu().detach().numpy().transpose((2,1,0)), 0.5)
+            # verts = transform_Inv(verts,scale=2)
+            # hair_mesh = trimesh.Trimesh(vertices=verts,faces=faces, process=False)
+            # hair_mesh = trimesh.smoothing.filter_laplacian(hair_mesh, iterations=10)
+            # hair_mesh.export(f"/data/HairStrand/NeuralHDHairData/DB3/mesh.obj")
+            rgb_image = cv2.imread("/data/HairStrand/NeuralHDHairData/DB3/20231219_203605_manual.png")
+            rgb_image=cv2.resize(rgb_image,(640,640))
+            orientation = orientation*occ
+        
+            orientation=orientation.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
+            orientation=orientation.detach().cpu().numpy()
+            orientation=orientation * np.array([1, -1, -1])
+            orientation=orientation.transpose(0,2,3,4,1)
+            _,H,W,C,D=orientation.shape[:]
+            orientation=orientation.reshape(H ,W,C*D)
+        m=np.identity(3)
+        color = [0,0,0,255]
+        points_same,points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color, sample_num=self.sample_num)
+        # mask = np.sum(colors,axis=1)
+        # colors[np.where(mask==255)]=color
+        sample_num=self.sample_num
+        start = segments[0]
+        segments = np.cumsum(segments)
+        segments = np.insert(segments,0,0)[:-1]
+        if self.delete_far:
+            connect=False
+            points_same,points,segments = self.froot.getNewRoot(points_same.reshape((-1,self.sample_num,3)),points,segments,connect=connect)
+            points_same = np.array(points_same).reshape([-1,3])
+            if connect:
+                sample_num=self.sample_num+1
+        use_unity = False
+        if use_unity:
+            import base64
+            # points=np.load("/media/yxh/My Passport/ths/NeuralHDHairData/DB3/DB3.npy")
+            nums= 100
+            # points=pyBsplineInterp.GetBsplineInterp(points,segments,nums,3)
+            # transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[0,-13.,-0.31],dimensionality=3)
+            m = transform.SimilarityTransform(scale=[7.3,8.5,8],translation=[-0.0,-14.63,-0],dimensionality=3)#DB3
+            # m = transform.SimilarityTransform(scale=[7.6,8.5,8],translation=[0.03,-14.63,-0],dimensionality=3)#DB2
+            points = np.array(points).reshape([-1,3])
+            points=transform.matrix_transform(points,m.params).astype('float32')
+
+            # segments_same = np.array(range(0,len(points)//nums))*nums
+            bytes_array = points.tobytes() 
+            points_str = base64.b64encode(bytes_array).decode('utf-8') 
+
+            params = {"reqCode":"female_1","points":points_str,"segments":segments.tolist(),"colors":[[34,36,45,255]],"version":0.6}
+
+
+            x=json.dumps(params)
+            data = {
+                "method": "CreateHair",
+                "params": x
+            }
+            # writejson("test.json",data)
+            ip_port="http://10.10.53.18:3889"
+            ret = requests.post(ip_port,data=json.dumps(data))
+            print(ret)
+        segments_same = np.array(range(0,len(points_same)//sample_num))*sample_num # 固定100个点
+        np.save("x.npy",points_same)
+        # writejson("test1.json",{"points":points.reshape((-1,3)).tolist(),"segments":segments.tolist()})
+        return points.reshape((-1,3)),segments,colors
     @timeCost
     def inference(self,image,gender="" ,name="",save_path="",use_gt=False,use_unity=False,use_NeuralHaircut=True):
         self.opt.test_file = name.split('.')[0]
@@ -206,7 +278,7 @@ class strand_inference:
                 else:
                     orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=self.opt.test_file)
         else:
-            orientation,out_occ = self.ModelingHD_solver.inference(ori2D,use_step=self.use_step,bust=bust,norm_depth=depth_norm,name=name)#orientation:128*128*3*96
+            orientation,out_occ = self.ModelingHD_solver.inference(ori2D,bust=bust,norm_depth=depth_norm,name=name)#orientation:128*128*3*96
             if self.get_cartoon:
                 verts, faces, normals, values = measure.marching_cubes(out_occ[0,0].cpu().numpy().transpose((2,1,0)), 0.5)
                 verts = transform_Inv(verts,scale=2)
@@ -398,6 +470,7 @@ if __name__=="__main__":
         set_camera(flag=1)
     hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),HairFilterLocal=True,use_modeling=True,use_step=True,\
                                  use_strand=True,Bidirectional_growth=True,gpu_ids=[2],get_cartoon=False)
+    # hair_infe.eval_ori2dtohair()
     save_path = os.path.join(os.path.dirname(__file__),"../data/test/out_paper")
     for g in gender:
         test_dir = os.path.join(os.path.dirname(__file__),"../data/test/paper")

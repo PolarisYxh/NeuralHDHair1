@@ -34,8 +34,9 @@ def drawLms(img, lms, color=(255, 0, 0),x="1"):
     for i,lm in enumerate(lms):
         cv2.circle(img1, tuple(lm), 1, color, 2)
         # cv2.putText(img,'%d'%(i), (lm[0]-2, lm[1]-3),cv2.FONT_HERSHEY_DUPLEX,0.3,(0,0,255),1)
-    cv2.imshow(x,img1)
-    cv2.waitKey()
+    cv2.imwrite("1.png",img1)
+    # cv2.imshow(x,img1)
+    # cv2.waitKey()
 def rotation_matrix_from_vectors(vec1, vec2):
     """ Find the rotation matrix that aligns vec1 to vec2
     :param vec1: A 3d "source" vector
@@ -171,8 +172,8 @@ class get_face_info:
             face.landmark_3d_68 +=np.array([y,x,0])
             # drawLms(frameForHair, face.landmark_3d_68[:,:2])
             # drawLms(frameForHair,face.landmark_2d_106)
-            frames.append(frame)
-            framesForHair.append(frameForHair)
+            frames.append(frame[...,:3])
+            framesForHair.append(frameForHair[...,:3])
             self.img=frameForHair
                 # cv2.imshow("1",frame)
                 # cv2.waitKey()

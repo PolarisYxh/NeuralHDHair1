@@ -135,6 +135,7 @@ class Handler(object):
         img = base642cvmat(json_data['imgFile'])
         # cv2.imshow("1",img)
         # cv2.waitKey()img,name,use_gt=False
+        # points,segments,colors = self.app.eval_ori2dtohair()# for evaluation
         points,segments,colors = self.app.inference(img,name=reqCode)
          # 转换到unity空间
         # 最初版的female_halfbody_medium_join.obj对齐到unity人脸模型

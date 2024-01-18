@@ -493,6 +493,8 @@ class GrowingNetSolver(BaseSolver):
             # occ1 = 1-F.max_pool3d(1-occ1, kernel_size=k, stride=1, padding=p)#腐蚀
             # occ1 = F.max_pool3d(occ1, kernel_size=k, stride=1, padding=p)#膨胀
             ori,dilate_ori,occ2,dilate_occ=close_voxel1(occ1,torch.from_numpy(ori.copy()).permute((3,0,1,2)),k)
+            # dilate_ori=ori
+            # dilate_occ=occ2
             # 方向场周围包一圈指向方向场的方向
             # Define 3D Sobel operator
             # sobel_x = torch.tensor([[[[1, 0, -1], [2, 0, -2], [1, 0, -1]],

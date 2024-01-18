@@ -78,6 +78,10 @@ class image_loader(base_loader):
         y=random.randint(-30,30)
         # y=-y if random.randint(0,1)==1 else y
         ang = [y,x]
+        rand = True
+        if not rand:
+            ang = [0,0]
+            flip=False
         tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
         strand = trans.matrix_transform(strand, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
         self.mesh.vertices = trans.matrix_transform(self.orig_vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
@@ -165,7 +169,8 @@ class image_loader(base_loader):
             gt_orientation = get_ground_truth_3D_ori1(file_name, ang, np.copy((image*255).astype('uint8')), flip, growInv=self.opt.growInv,is_hd=True)
         # image,gt_orientation,strand2D=self.random_translation(image,gt_orientation,strand2D)
         # gt_orientation 96,128,128,3
-        gt_orientation,data_list=self.random_translation(self.opt.image_size,gt_orientation,data_list)
+        if rand:
+            gt_orientation,data_list=self.random_translation(self.opt.image_size,gt_orientation,data_list)
 
 
         mask=np.linalg.norm(gt_orientation,axis=-1)
@@ -180,6 +185,8 @@ class image_loader(base_loader):
             add_info=data_list['add_info']
         else:
             add_info=torch.Tensor(0)
+        # torch.save(data_list['image'],"/data/HairStrand/NeuralHDHairData/DB3/image.pt")
+        # torch.save(add_info,"/data/HairStrand/NeuralHDHairData/DB3/add_info.pt")
         return_list={
             'gt_ori':gt_orientation,
             'image':data_list['image'],

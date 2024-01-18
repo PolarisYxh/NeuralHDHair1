@@ -6,6 +6,7 @@ from Tools.utils import *
 import torch.autograd
 from Models.Local_filter import Local_Filter
 from torch.cuda.amp import autocast, GradScaler
+
 class HairModelingHDSolver(BaseSolver):
     # use add_info to fine train
     @staticmethod
@@ -123,7 +124,23 @@ class HairModelingHDSolver(BaseSolver):
 
 
                 out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, depth_map=depth,resolution=self.opt.resolution)
-
+                # import trimesh
+                # from dataload.render_strand import render_cartoon
+                # from skimage import measure
+                # out_occ_hd[out_occ_hd>=0.2]=1
+                # out_occ_hd[out_occ_hd<0.2]=0
+                # torch.save(out_occ_hd,"/data/HairStrand/NeuralHDHairData/DB3/out_occ.pt")
+                # torch.save(out_ori_hd,"/data/HairStrand/NeuralHDHairData/DB3/out_ori.pt")
+                # visualizer.board_current_errors(self.loss_local)
+                # visualizer.board_current_errors(self.loss_global)
+                # verts, faces, normals, values = measure.marching_cubes(out_occ_hd[0,0].cpu().detach().numpy().transpose((2,1,0)), 0.5)
+                # verts = transform_Inv(verts,scale=2)
+                # hair_mesh = trimesh.Trimesh(vertices=verts,faces=faces, process=False)
+                # hair_mesh = trimesh.smoothing.filter_laplacian(hair_mesh, iterations=10)
+                # hair_mesh.export(f"/data/HairStrand/NeuralHDHairData/DB3/mesh.obj")
+                # _,_,rgb = render_cartoon(hair_mesh,self.body,mesh_colors=np.array([177, 177, 177, 255]))
+                # cv2.imwrite(f"{self.opt.test_file}.png",rgb)
+                
                 self.loss_backward(self.loss_global,self.optimizer_global,mix=False)
                 # self.loss_backward(self.loss_global,self.optimizer_local)
                 self.loss_backward(self.loss_local,self.optimizer_local,mix=True)
@@ -172,7 +189,7 @@ class HairModelingHDSolver(BaseSolver):
             # pred_ori=torch.reshape(pred_ori,(128,128,96*3))
             pred_ori=pred_ori.cpu().numpy()
             save_ori_as_mat(pred_ori,self.opt)
-    def inference(self,image,use_step,bust=None,depth=None,norm_depth=None, use_bust=True,name=""):
+    def inference(self,image,bust=None,depth=None,norm_depth=None, use_bust=True,name=""):
         self.net_local.eval()
         self.net_global.eval()
         with torch.no_grad():
@@ -220,6 +237,7 @@ class HairModelingHDSolver(BaseSolver):
             pred_ori=out_ori*out_occ
             pred_ori=pred_ori.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
             pred_ori=pred_ori.cpu().numpy()
+            #不只是保存，还有变换
             pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
             # show(pred_ori,scale=1)
             # pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
