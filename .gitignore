@@ -9,5 +9,6 @@
 /*.data
 /*.obj
 /*.npy
+!/female_halfbody_medium_join.obj
 cache
-/NeuralHaircut
+/*.ply

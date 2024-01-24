@@ -215,7 +215,7 @@ class filter_crop:
         four_by_four[-1, :-1] = 0  
         four_by_four[-1, -1] = 1  
         self.cam_extri = m[2]@x2@four_by_four@x1
-        
+        self.cam_pose = x2@four_by_four@x1@np.linalg.inv(m[2])
         # cv2.imshow("1",bust)
         # cv2.waitKey() 
         self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])

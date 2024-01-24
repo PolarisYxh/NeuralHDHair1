@@ -2,16 +2,35 @@ import cv2
 import numpy as np
 from NeuralHaircut.run_strands_optimization import Runner
 import torch
+import os
 if __name__=="__main__":
+    # occ = torch.arange(12, dtype=torch.float).reshape(2,3,2).unsqueeze(0).unsqueeze(0) # [1, 1, 2, 3, 2]
+    # grid = torch.tensor([[[[-0.25, -1.0, -1.0], [1.0, -1.0, -1.0]],
+    #                     [[ -1.0,  1.0,  1.0], [1.0,  1.0,  1.0]]]]).unsqueeze(0)	# (1,1,2,2,3)
+    # index = occ.nonzero()[:,2:]
+    # index = (index/torch.tensor([occ.shape[2],occ.shape[3],occ.shape[4]]).to(torch.float32)-0.5)/2
+    # index = index.unsqueeze(0)
+    # out = torch.nn.functional.grid_sample(occ, grid=grid, padding_mode='border')
+    
+    # occ=torch.from_numpy(occ.copy()).to(self.device).to(torch.int).to(torch.float32)
+    # index = occ.nonzero()[:,:3]
+    # index = (index/torch.tensor([occ.shape[0],occ.shape[1],occ.shape[2]]).to(self.device).to(torch.float32)-0.5)*2
+    # #occ[None].permute((0, 4, 3, 1, 2)):N, C, D, H, W
+    # ori=torch.from_numpy(ori.copy()).to(self.device).to(torch.float32)
+    # occ_list=self.index_voxel(occ[None].to(torch.float32).permute((0, 4, 1, 2, 3)),index[:,[2,1,0]][None])
+    # occ_list=occ_list[0,0]
+    # v = torch.sum(1-torch.abs(occ_list))
+
     test_file = 'img_0044'
-    ori2D = cv2.imread(f"{test_file}_ori.png")
+    test_dir = "NeuralHaircut/test/img_0044"
+    ori2D = cv2.imread(os.path.join(test_dir,f"{test_file}_ori.png"))
     # cv2.imwrite(f"{test_file}_bust.png",(bust*255).astype('uint8'))
-    rgb_image = cv2.imread(f"{test_file}_rgb.png")
+    rgb_image = cv2.imread(os.path.join(test_dir,f"{test_file}_rgb.png"))
     # cv2.imwrite(f"{test_file}_color.png",color)
-    revert_rot = np.load(f"{test_file}_revert_rot.npy")
-    cam_intri = np.load(f"{test_file}_cam_intri.npy")
-    cam_extri = np.load(f"{test_file}_cam_extri.npy")
-    ori=np.load(f"{test_file}_orientation.npy")
+    revert_rot = np.load(os.path.join(test_dir,f"{test_file}_revert_rot.npy"))
+    cam_intri = np.load(os.path.join(test_dir,f"{test_file}_cam_intri.npy"))
+    cam_extri = np.load(os.path.join(test_dir,f"{test_file}_cam_extri.npy"))
+    ori=np.load(os.path.join(test_dir,f"{test_file}_orientation.npy"))
     
     ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
     ori = ori.transpose([0, 1, 3, 2])# ori: 128*128*96*3
@@ -62,4 +81,5 @@ if __name__=="__main__":
     cam_intri = torch.from_numpy(cam_intri)
     ori2D = torch.from_numpy(ori2D)/255.
     # orientation = torch.from_numpy(ori)
+    # ori : H,W,D
     runner.train(image,mask,ori2D,ori,out_occ,cam_extri,cam_intri)#out_occ:[256,256,192,1] DHW3

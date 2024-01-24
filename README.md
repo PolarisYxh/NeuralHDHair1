@@ -13,6 +13,8 @@ The source code of the networks for our paper ["NeuralHDHair: Automatic High-fid
 - Pytorch 1.8.1
 - NVIDIA GPU + CUDA 11.1
 
+# environment #
+cd NeuralHaircut/npbgpp && python setup.py build develop
 
 # get data #
 1. Code/Tools/get_voxelsample.py to compute sample_voxel.mat

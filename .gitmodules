@@ -1,0 +1,3 @@
+[submodule "NeuralHaircut"]
+	path = NeuralHaircut
+	url = git@github.com:PolarisYxh/NeuralHaircutSingle.git

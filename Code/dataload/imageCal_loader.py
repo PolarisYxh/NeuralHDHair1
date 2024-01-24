@@ -79,15 +79,17 @@ class imageCal_loader(base_loader):
         
         strand = strand1.copy()
         strand = strand+np.array([0.00703544,-1.58652416,-0.01121912])
-        flip=False
+        x=random.randint(-30,30)#从上往下看人体顺时针旋转
+        y=random.randint(-30,30)#人体向下旋转
+        ang = [y,x]
+        rand = True
+        if not rand:
+            ang = [30,15]
+            flip=False
         if flip:
             strand[:,0]=-strand[:,0]
-        x=random.randint(-30,30)
-        # x=-x if random.randint(0,1)==1 else x
-        y=random.randint(-30,30)
-        # y=-y if random.randint(0,1)==1 else y
-        ang = [y,x]
-        # ang = [30,30]
+        
+        
         tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
         strand = trans.matrix_transform(strand, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
         self.mesh.vertices = trans.matrix_transform(self.orig_vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])

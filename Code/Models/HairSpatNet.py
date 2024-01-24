@@ -82,7 +82,7 @@ class HairSpatNet(BaseNetwork):
         :param uv: [B, N, 2] normalized image coordinates ranged in [-1, 1]
         :return: [B, C, N] sampled pixel values
         '''
-        uv=uv.unsqueeze(2)
+        uv=uv.unsqueeze(2)#[1, 320000, 1, 2]，feat : [1, 1, 256, 256]
         samples=torch.nn.functional.grid_sample(feat, uv, mode='bilinear', align_corners=True)
         return samples[...,0]
 
@@ -138,7 +138,7 @@ class HairSpatNet(BaseNetwork):
                     p = int(k / 2)
                     weight_occ = F.max_pool3d(gt_occ, kernel_size=k, stride=1, padding=p)
                     weight_occ = F.avg_pool3d(weight_occ, kernel_size=k, stride=1, padding=p)#weight_occ边缘有些值为0的体素会置于1或者0.几
-            loss_weights = 1 - weight_occ.clone() + gt_occ#只有占用和没占用边缘地带的体素权重比较小，其他占用和没有占用的地方权重都是1
+            loss_weights = 1 - weight_occ.clone() + gt_occ#只有占用边缘地带的体素权重大于1，没占用边缘地带的体素权重小于1，其他占用和没有占用的地方权重都是1
 
             all_occ = weight_occ.clone()
             all_occ[all_occ > 0] = 1#gt_occ占用场膨胀了边缘
@@ -187,7 +187,8 @@ class HairSpatNet(BaseNetwork):
             self.clip_points = self.voxel_points.permute((0,2,1))#[1, 3, 63149] ,3个维度代表W, H, D
 
             xyz = orthogonal(self.clip_points, calibration)#xyz:clip 空间
-            xyz[:,1,:]=(-xyz[:,1,:])
+            xyz[:,1,:]=(-xyz[:,1,:])#[-1,1]，h经过投影反了，所以取反
+            xyz=(xyz/2+0.5)#归一化到[0,1]，  .clip(0,1)不加好像没事
             self.clip_points = xyz.permute((0,2,1))
             # # for visualize clip_points
             # xy = xyz[:, :2, :]
@@ -207,8 +208,8 @@ class HairSpatNet(BaseNetwork):
             #     cv2.circle(x, center, 4, depth_proj1[0,i,:].tolist(), 1)
             # cv2.imwrite("1.png",x)
         else:
-            self.clip_points = self.voxel_points/torch.tensor([W-1, H-1, D-1], dtype=torch.float).cuda()#self.voxel_points  voxels normalize
-        self.clip_points = self.clip_points[:, :, [1, 0, 2]]#self.clip_points WHD变为 H, W, D
+            self.clip_points = self.voxel_points/torch.tensor([W-1, H-1, D-1], dtype=torch.float).cuda()#self.voxel_points  voxels normalize,[0,1]
+        self.clip_points = self.clip_points[:, :, [1, 0, 2]]#self.clip_points WHD变为HWD； H（从上到下）, W（从左往右）, D（从前往后）,范围在[0,1]之间
 
 
     def get_depth_feat(self,depth_map,points):
@@ -220,8 +221,8 @@ class HairSpatNet(BaseNetwork):
         self.depth_feat=depth/95.
         
     def get_depth_feat1(self,depth_map,points):
-        xy = points[:, :, [1, 0]]
-        xy = (xy - 0.5) * 2
+        xy = points[:, :, [1, 0]]#HWD转为WH
+        xy = (xy - 0.5) * 2#转为[-1,1]
         depth = self.index(depth_map, xy)
         self.depth_feat=depth
 
@@ -247,6 +248,7 @@ class HairSpatNet(BaseNetwork):
         # draw_circles_by_projection(bgr_img,hair_occ)
         # save_image(depth_map[0],"1.png")
         depth=self.index(depth_map, xy)*(D-1)
+        # x=depth.nonzero()
         rang = D/96
         # rang = 1
         self.loss_weight1=0.5+(-torch.abs(depth-z)+10.*rang)/(20.*rang)#z离depth越远，loss_weight越小,距离20，weight为0

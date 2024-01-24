@@ -279,6 +279,7 @@ class strand_inference:
                     orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=self.opt.test_file)
         else:
             orientation,out_occ = self.ModelingHD_solver.inference(ori2D,bust=bust,norm_depth=depth_norm,name=name)#orientation:128*128*3*96
+            self.get_cartoon=True
             if self.get_cartoon:
                 verts, faces, normals, values = measure.marching_cubes(out_occ[0,0].cpu().numpy().transpose((2,1,0)), 0.5)
                 verts = transform_Inv(verts,scale=2)
@@ -290,6 +291,7 @@ class strand_inference:
                 _,_,rgb = render_cartoon(hair_mesh,self.body,mesh_colors=np.array([177, 177, 177, 255]))
                 cv2.imwrite(f"{self.opt.test_file}.png",rgb)
                 return verts,faces,normals
+        # orientation : H,W,D
         np.save(f"{self.opt.test_file}_orientation.npy", orientation)
         np.save(f"{self.opt.test_file}_occ.npy", out_occ.cpu().numpy())
         use_NeuralHaircut = False
@@ -475,7 +477,7 @@ if __name__=="__main__":
     for g in gender:
         test_dir = os.path.join(os.path.dirname(__file__),"../data/test/paper")
         file_names = os.listdir(test_dir)
-        file_names = ['乔小刀.jpg']#,'img_0044.png'
+        file_names = ['img_0044.png']#,'乔小刀.jpg'
         for name in tqdm(file_names[:]):#31:32，19
             # name = "female_20.jpg"
             test_file = os.path.join(test_dir,name)

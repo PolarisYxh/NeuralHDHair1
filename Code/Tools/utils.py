@@ -1170,7 +1170,7 @@ def transform(points,scale=1):
 
     :param points: 原始点云
     :param scale:体素256*256时为2,128*128时为1
-    :return: 体素化的点云
+    :return: 体素化的点云,WHD
     '''
     mul=1
     stepInv = 1. / (0.00567194/scale/mul)#voxel 边长0.00567194
