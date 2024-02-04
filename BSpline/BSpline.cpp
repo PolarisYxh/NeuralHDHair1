@@ -265,3 +265,38 @@ void MakeInterp3d2(float * stds,int* segs,float * result,int point_num,int stran
     }
     // return result;
 }
+void MakeInterp3d3(float * stds,int* segs,float * result,int point_num,int strand_num,int* final_nums,int k){
+    // 25s 并行后:2.40796375274658
+    int start=0;
+    vector<int> starts(strand_num);
+    Eigen::Matrix<float,Dynamic,3,Eigen::RowMajor> strands1 = Eigen::Map<Eigen::Matrix<float,Dynamic,3,Eigen::RowMajor>>(stds,point_num,3);
+    std::vector<Eigen::Matrix<float,Dynamic,3>> strands(strand_num);
+    for(int n=0;n<strand_num;n++)//n:控制点个数-1
+    {
+        starts.push_back(start);
+        auto x= strands1.block(start,0,segs[n],3);
+        strands[n]=x;
+        start+=segs[n];
+    }
+    #pragma omp parallel for schedule(static)
+    for(int strand_idx=0;strand_idx<strand_num;strand_idx++)
+    {
+        int num=segs[strand_idx];
+        int n =num-1; //控制点个数-1
+        Eigen::MatrixXf bik_u(n+1, 1);
+        
+        const vector<double> node_vector= u_quasi_uniform(n,k);
+        double step = 1.0/final_nums[strand_idx];
+        for(int j=0;j<final_nums[strand_idx];j++){
+            double u=step*j;
+            for(int i=0;i<n+1;i++){
+                bik_u(i,0)= baseFunction(i,k,u,node_vector);
+            }
+            auto y = bik_u.transpose()*strands[strand_idx];
+            result[(strand_idx*final_nums[strand_idx]+j)*3]=y(0);
+            result[(strand_idx*final_nums[strand_idx]+j)*3+1]=y(1);
+            result[(strand_idx*final_nums[strand_idx]+j)*3+2]=y(2);
+        }
+    }
+    // return result;
+}

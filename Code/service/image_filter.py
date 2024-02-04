@@ -206,7 +206,7 @@ class filter_crop:
         m=[]
         _,bust,img2 = render_strand([[]],[],self.body,orientation=[],intensity=3,matrix=m,mask=True)
         # calculate cam intrinsic and cam extrinsic
-        self.cam_intri = m[1]
+        self.cam_intri = m[1]#从相机空间到裁剪空间
         x1=trans.SimilarityTransform(translation=-center,dimensionality=3).params
         x2=trans.SimilarityTransform(translation=center,dimensionality=3).params
         four_by_four = np.eye(4)  
@@ -214,8 +214,8 @@ class filter_crop:
         four_by_four[:-1, -1] = 0  
         four_by_four[-1, :-1] = 0  
         four_by_four[-1, -1] = 1  
-        self.cam_extri = m[2]@x2@four_by_four@x1
-        self.cam_pose = x2@four_by_four@x1@np.linalg.inv(m[2])
+        self.cam_extri = m[2]@x2@np.linalg.inv(four_by_four)@x1 #从世界坐标到相机空间
+        self.cam_pose = x2@four_by_four@x1@np.linalg.inv(m[0])
         # cv2.imshow("1",bust)
         # cv2.waitKey() 
         self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])

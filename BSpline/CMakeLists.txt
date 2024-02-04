@@ -32,7 +32,7 @@ if (OPENMP_FOUND)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
-set(pybind11_DIR ~/miniconda3/envs/face1/lib/python3.8/site-packages/pybind11/share/cmake/pybind11)
+set(pybind11_DIR /home/yangxinhang/anaconda3/envs/neuhair/lib/python3.9/site-packages/pybind11/share/cmake/pybind11)
 FIND_PACKAGE(pybind11 REQUIRED)
 
 INCLUDE_DIRECTORIES(
@@ -43,13 +43,3 @@ INCLUDE_DIRECTORIES(
 # add_executable(BsplineInterpTest ${SOURCE_FILES} )
 pybind11_add_module(pyBsplineInterp ${SOURCE_FILES1})
 
-
-# add_library(pyBsplineInterp ${SOURCE_FILES1})
-# add_subdirectory(pybind11)
-
-
-# target_link_libraries(pyBsplineInterp PRIVATE 
-# # Eigen3::Eigen
-# # ${CMAKE_CURRENT_SOURCE_DIR}/../_deps/libOpenMeshCore.so
-# # ${CMAKE_CURRENT_SOURCE_DIR}/../_deps/libOpenMeshTools.so
-# )

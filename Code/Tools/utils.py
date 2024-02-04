@@ -30,7 +30,12 @@ def timeCost(func):
         return result
 
     return wrapper
-
+def voxel2mesh_matrix(scale=1):
+    mul=1
+    stepInv = 1. / (0.00567194/scale/mul)#voxel 边长0.00567194
+    gridOrg= np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
+    m = trans.SimilarityTransform(translation=gridOrg,dimensionality=3).params@trans.SimilarityTransform(scale=[1/stepInv, -1/stepInv, -1/stepInv],dimensionality=3).params@trans.SimilarityTransform(translation=[0, -128*scale*mul, -96*scale*mul],dimensionality=3).params
+    return m
 def get_depth(d,image_size):
     path=os.path.join(d,'hair_depth1.png')
     # print(path)
@@ -2087,6 +2092,12 @@ def perspective(points, calibrations, transforms=None):
     :param calibrations: [Bx4x4] Tensor of projection matrix
     :param transforms: [Bx2x3] Tensor of image transform matrix
     :return: xy: [Bx2xN] Tensor of xy coordinates in the image plane
+    '''
+    points=torch.cat((points,torch.ones_like(points[:,:1,:])),dim=1)
+    points = calibrations[:]@(points[:])
+    points=points[:,:3,:]/points[:,3,:]
+    return points
+    ''':return: xy: [Bx2xN] Tensor of xy coordinates in the image plane
     '''
     rot = calibrations[:, :3, :3]
     trans = calibrations[:, :3, 3:4]

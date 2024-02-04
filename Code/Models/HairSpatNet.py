@@ -82,21 +82,21 @@ class HairSpatNet(BaseNetwork):
         :param uv: [B, N, 2] normalized image coordinates ranged in [-1, 1]
         :return: [B, C, N] sampled pixel values
         '''
-        uv=uv.unsqueeze(2)#[1, 320000, 1, 2]，feat : [1, 1, 256, 256]
+        uv=uv.unsqueeze(2)
         samples=torch.nn.functional.grid_sample(feat, uv, mode='bilinear', align_corners=True)
         return samples[...,0]
 
 
-    def sample_test_point(self,Ori2D,resolution):
-        m_w=Ori2D.size(2)
+    def sample_test_point(self,Ori2D,resolution,calibration=None):
+        m_w=Ori2D.size(2)#[1,2,256,256]
 
         D,H,W=resolution
         mul = m_w /W
-        index=Ori2D.nonzero()#n*5
+        index=Ori2D.nonzero()#n*5,H*W
         x_min=max(torch.min(index[:,2:3])//mul-4//mul,0)
-        x_max=min(torch.max(index[:,2:3])//mul+16//mul,W-1)
+        x_max=min(torch.max(index[:,2:3])//mul+16//mul,H-1)# H
         y_min=max(torch.min(index[:,3:4])//mul-6//mul,0)
-        y_max=min(torch.max(index[:,3:4])//mul+6//mul,H-1)
+        y_max=min(torch.max(index[:,3:4])//mul+6//mul,W-1)# W
 
         # x_min=0
         # y_min=0
@@ -104,18 +104,45 @@ class HairSpatNet(BaseNetwork):
         # y_max=127
         z_min=20* W//128
         z_max=80*W//128
-        y = torch.range(y_min, y_max)
-        x = torch.range(x_min, x_max)
-        z = torch.range(z_min, z_max)
-        X, Y, Z = torch.meshgrid([x, y, z])
-        self.test_voxel_points = torch.cat([X[..., None], Y[..., None], Z[..., None]], dim=3).cuda()
-        self.test_voxel_points = self.test_voxel_points.reshape(-1, 3)
+        # z_min=0
+        # z_max=191
+        y = torch.arange(y_min, y_max).to(torch.float32)
+        x = torch.arange(x_min, x_max).to(torch.float32)
+        z = torch.arange(z_min, z_max).to(torch.float32)
+        X, Y, Z = torch.meshgrid([x, y, z])# HWD
+        self.test_voxel_points = torch.cat([X[..., None], Y[..., None], Z[..., None]], dim=3).cuda()#H W D
+        self.test_voxel_points = self.test_voxel_points.reshape(-1, 3)#H W D
         # self.test_points += 0.5
+        if isinstance(calibration,torch.Tensor):
+            calibration = calibration.cuda()[None].to(torch.float32)
+            self.test_voxel_points = self.test_voxel_points[:,[1,0,2]][None]#W H D
+            xyz = self.test_voxel_points.permute((0,2,1))#[1, 63149, 3]变为[1, 3, 63149] ,3个维度代表W, H, D
+            xyz = perspective(xyz,calibration)
+            xyz[:,1,:]=(-xyz[:,1,:])#[-1,1]，h经过投影反了，所以取反
+            xyz1=xyz/2+0.5#归一化到[0,1]
+            self.test_clip_points = xyz1.permute((0,2,1))[:, :, [1, 0, 2]]#WHD变到HWD
+            # # for visualize clip_points
+            # xy = xyz[:, :2, :]#[-1,1]
+            # import cv2
+            # save_image(torch.cat([Ori2D, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],"test2.png")
+            # depth_proj = self.index(Ori2D.cuda(), xy.permute((0,2,1)))
+            # depth_proj1 = (depth_proj*255).cpu().numpy().astype('uint8').transpose((0,2,1))
+            # y=np.all(depth_proj1[0]==[0,0,0],axis=-1)
+            # # x=np.where(np.all(depth_proj1[0]==[0,0,0],axis=-1)==True)
+            # # show
+            # x = (np.ones((1024,1024,3))*255).astype('uint8')
+            # xy1=(xy*128+128).to(torch.int).permute((0,2,1)).cpu().numpy()
+            # for i,p in enumerate(xy1[0]):
+            #     ww = p[0]
+            #     hh = p[1]
+            #     center = np.array([ww * 4 + 2, hh * 4 + 2])
+            #     cv2.circle(x, center, 4, depth_proj1[0,i,:].tolist(), 1)
+            # cv2.imwrite("test1.png",x)
+        else:
+            self.test_clip_points = self.test_voxel_points/torch.tensor([H-1 , W-1 , D-1],dtype=torch.float).cuda()# HWD
+            self.test_voxel_points = self.test_voxel_points[None][:, :, [1, 0, 2]]# 变到WHD   [0,1]
+            self.test_clip_points = self.test_clip_points[None]###### HWD   [0,1]
 
-
-        self.test_clip_points = self.test_voxel_points/torch.tensor([H-1 , W-1 , D-1],dtype=torch.float).cuda()# HWD
-        self.test_voxel_points=self.test_voxel_points[None][:, :, [1, 0, 2]]# WHD   [0,1]
-        self.test_clip_points=self.test_clip_points[None]    ###### HWD   [0,1]
     def to_mesh(self,scale=1):
 
         stepInv = 1. / (0.00567194/scale)
@@ -184,20 +211,20 @@ class HairSpatNet(BaseNetwork):
         self.loss_weight = torch.cat(self.loss_weight, dim=0)
         # self.loss_weight=None
         if isinstance(calibration,torch.Tensor):
-            self.clip_points = self.voxel_points.permute((0,2,1))#[1, 3, 63149] ,3个维度代表W, H, D
+            self.clip_points = self.voxel_points.permute((0,2,1))#[1, 63149, 3]变为[1, 3, 63149], 3个维度代表W, H, D
 
             xyz = orthogonal(self.clip_points, calibration)#xyz:clip 空间
             xyz[:,1,:]=(-xyz[:,1,:])#[-1,1]，h经过投影反了，所以取反
-            xyz=(xyz/2+0.5)#归一化到[0,1]，  .clip(0,1)不加好像没事
-            self.clip_points = xyz.permute((0,2,1))
+            xyz1=xyz/2+0.5#归一化到[0,1]
+            self.clip_points = xyz1.permute((0,2,1))
             # # for visualize clip_points
-            # xy = xyz[:, :2, :]
+            # xy = xyz[:, :2, :]#[-1,1]
             # import cv2
-            # save_image(img1,"2.png")
+            # save_image(torch.cat([img1.unsqueeze(0), torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],"test2.png")
             # depth_proj = self.index(img1.unsqueeze(0).cuda(), xy.permute((0,2,1)))
             # depth_proj1 = (depth_proj*255).cpu().numpy().astype('uint8').transpose((0,2,1))
             # y=np.all(depth_proj1[0]==[0,0,0],axis=-1)
-            # x=np.where(np.all(depth_proj1[0]==[0,0,0],axis=-1)==True)
+            # # x=np.where(np.all(depth_proj1[0]==[0,0,0],axis=-1)==True)
             # # show
             # x = (np.ones((1024,1024,3))*255).astype('uint8')
             # xy1=(xy*128+128).to(torch.int).permute((0,2,1)).cpu().numpy()
@@ -206,10 +233,10 @@ class HairSpatNet(BaseNetwork):
             #     hh = p[1]
             #     center = np.array([ww * 4 + 2, hh * 4 + 2])
             #     cv2.circle(x, center, 4, depth_proj1[0,i,:].tolist(), 1)
-            # cv2.imwrite("1.png",x)
+            # cv2.imwrite("test1.png",x)
         else:
             self.clip_points = self.voxel_points/torch.tensor([W-1, H-1, D-1], dtype=torch.float).cuda()#self.voxel_points  voxels normalize,[0,1]
-        self.clip_points = self.clip_points[:, :, [1, 0, 2]]#self.clip_points WHD变为HWD； H（从上到下）, W（从左往右）, D（从前往后）,范围在[0,1]之间
+        self.clip_points = self.clip_points[:, :, [1, 0, 2]]#self.clip_points WHD变为 H（从上到下）, W（从左往右）, D（从前往后）,范围在[0,1]之间
 
 
     def get_depth_feat(self,depth_map,points):
@@ -279,6 +306,8 @@ class HairSpatNet(BaseNetwork):
         # draw_circles_by_projection(bgr_img,hair_occ)
 
     def forward(self,x,gt_occ,gt_ori,calibration=None,mode='generator',depth_map=None,norm_depth=None,no_use_depth=True):
+        '''calibration: 体素空间直接到裁剪空间矩阵
+        '''
         if mode=='generator':
             B=x.size(0)
             # D,H,W=96*2,128*2,128*2
@@ -308,8 +337,8 @@ class HairSpatNet(BaseNetwork):
 
             loss_ori=l1_loss((self.gt_ori-ori*self.gt_occ)*self.loss_weight)/max(torch.sum(self.loss_weight),1.0)
             loss_occ=l1_loss((self.gt_occ-occ)*self.loss_weight)/max(torch.sum(self.loss_weight),1.0)
-            self.point_convert_to_voxel(self.clip_points,ori,mode='ori',is_voxel=True)
-            self.point_convert_to_voxel(self.clip_points,occ,mode='occ',is_voxel=True)
+            self.point_convert_to_voxel(self.voxel_points,ori,mode='ori',is_voxel=True)
+            self.point_convert_to_voxel(self.voxel_points,occ,mode='occ',is_voxel=True)
 
             return self.out_ori,self.out_occ,loss_ori,loss_occ
 
@@ -324,7 +353,7 @@ class HairSpatNet(BaseNetwork):
         self.out_occ = torch.zeros(1, 1, *resolution).cuda()
         self.phi_occ=[]
         self.phi_ori=[]
-        self.sample_test_point(Ori2D,resolution=resolution)
+        self.sample_test_point(Ori2D,calibration=calibration,resolution=resolution)
 
         n=self.test_clip_points.size(1)//step+1
         if not self.opt.no_use_depth:
@@ -360,7 +389,7 @@ class HairSpatNet(BaseNetwork):
         #     index = points * torch.tensor([H-1., W-1., D-1.]).cuda()
         # index = self.voxel_points[:, :, [1, 0, 2]]
         if is_voxel:
-            index = points[:, :, [1, 0, 2]]
+            index = points[:, :, [1, 0, 2]]#index: HWD
         else:
             D, H, W = self.out_ori.size()[2:]
             index = points * torch.tensor([H - 1., W - 1., D - 1.]).cuda()

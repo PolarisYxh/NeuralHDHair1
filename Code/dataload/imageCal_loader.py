@@ -19,7 +19,7 @@ class imageCal_loader(base_loader):
         self.mesh = trimesh.load(os.path.join(os.path.dirname(__file__),"../../",'female_halfbody_medium_join.obj'))
         self.orig_vertices = self.mesh.vertices.copy()
         self.orig_vertices = self.orig_vertices+np.array([0.00703544,-1.58652416,-0.01121912])
-        self.voxel2mesh_m = self.voxel2mesh_matrix(scale =2)
+        self.voxel2mesh_m = voxel2mesh_matrix(scale =2)
         if self.isTrain:
             self.num_of_val = opt.num_of_val
             self.train_corpus = []
@@ -53,12 +53,7 @@ class imageCal_loader(base_loader):
             print(f"num of training data: {self.train_nums}")
         else:
             print(f"num of test data: {self.train_nums}")
-    def voxel2mesh_matrix(self,scale=1):
-        mul=1
-        stepInv = 1. / (0.00567194/scale/mul)#voxel 边长0.00567194
-        gridOrg= np.array([-0.3700396, 1.22352, -0.261034], dtype=np.float32)
-        m = trans.SimilarityTransform(translation=gridOrg,dimensionality=3).params@trans.SimilarityTransform(scale=[1/stepInv, -1/stepInv, -1/stepInv],dimensionality=3).params@trans.SimilarityTransform(translation=[0, -128*scale*mul, -96*scale*mul],dimensionality=3).params
-        return m
+    
     def __len__(self):
         # if self.isTrain:
         #     numbers = list(range(0, 13))

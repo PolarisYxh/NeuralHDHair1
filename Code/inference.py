@@ -3,6 +3,7 @@ from options.inference_options import InferenceOptions
 from solver.GrowingNetSolver import GrowingNetSolver
 from solver.HairSpatNetSolver import HairSpatNetSolver
 from solver.HairModelingHDSolver import HairModelingHDSolver
+from solver.HairModelingHDCalSolver import HairModelingHDCalSolver
 import os
 from Tools.drawTools import draw_arrows_by_projection1,draw_gt_arrows_by_projection
 from Tools.to_unity import *
@@ -89,22 +90,36 @@ class strand_inference:
             # self.opt.growInv=False
             # self.growing_solver = GrowingNetSolver()
             # self.growing_solver.initialize(self.opt)
-            
-            self.opt.model_name=="HairModelingHD"
-            self.opt.save_root="checkpoints/HairModelingHD"
-            self.opt.blur_ori = False
-            self.opt.no_use_depth = True
-            self.opt.no_use_pretrain = True
-            if use_ori_addinfo:
-                self.opt.which_iter=16512 # ori: LocalFilter line 16
-                self.opt.check_name="2023-10-26_addori"
+            self.use_cal=True
+            if self.use_cal:
+                self.opt.model_name=="HairModelingHDCal"
+                self.opt.save_root="checkpoints/HairModelingHDCal"
+                self.opt.blur_ori = False
+                self.opt.no_use_depth = True
+                self.opt.no_use_pretrain = True
+               
+                self.opt.which_iter=183008 # 2024-01-15/183008：新流程没有随机平移的模型
+                self.opt.check_name="2024-01-15"
+                    
+                self.opt.use_ori_addinfo=False
+                self.ModelingHDCal_solver = HairModelingHDCalSolver()
+                self.ModelingHDCal_solver.initialize(self.opt)
             else:
-                self.opt.which_iter=295840 # 295840 测试过较好,但有时有空洞  667360:； 700400:加入DB2、DB3以后训练的
-                self.opt.check_name="2023-07-31_rot_depth1"
-                
-            self.opt.use_ori_addinfo=use_ori_addinfo
-            self.ModelingHD_solver = HairModelingHDSolver()
-            self.ModelingHD_solver.initialize(self.opt)
+                self.opt.model_name=="HairModelingHD"
+                self.opt.save_root="checkpoints/HairModelingHD"
+                self.opt.blur_ori = False
+                self.opt.no_use_depth = True
+                self.opt.no_use_pretrain = True
+                if use_ori_addinfo:#没有使用头发深度作为附加信息输入，还是只使用方向图作为附加信息输入
+                    self.opt.which_iter=16512 # ori: LocalFilter line 16
+                    self.opt.check_name="2023-10-26_addori"
+                else:
+                    self.opt.which_iter=700400 # 295840 测试过较好,但有时有空洞  667360 700400
+                    self.opt.check_name="2023-07-31_rot_depth1"
+                    
+                self.opt.use_ori_addinfo=use_ori_addinfo
+                self.ModelingHD_solver = HairModelingHDSolver()
+                self.ModelingHD_solver.initialize(self.opt)
         else:
             self.opt.voxel_size = "96,128,128"
             if use_hd:
@@ -189,7 +204,7 @@ class strand_inference:
             points_same = np.array(points_same).reshape([-1,3])
             if connect:
                 sample_num=self.sample_num+1
-        use_unity = False
+        use_unity = True
         if use_unity:
             import base64
             # points=np.load("/media/yxh/My Passport/ths/NeuralHDHairData/DB3/DB3.npy")
@@ -278,8 +293,10 @@ class strand_inference:
                 else:
                     orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=bust,name=self.opt.test_file)
         else:
-            orientation,out_occ = self.ModelingHD_solver.inference(ori2D,bust=bust,norm_depth=depth_norm,name=name)#orientation:128*128*3*96
-            self.get_cartoon=True
+            if self.use_cal:
+                orientation,out_occ = self.ModelingHDCal_solver.inference(ori2D,calibration=cam_intri@cam_extri,use_step=self.use_step,bust=bust,norm_depth=depth_norm,name=name)#orientation:256*256*3*192
+            else:
+                orientation,out_occ = self.ModelingHD_solver.inference(ori2D,bust=bust,norm_depth=depth_norm,name=name)#orientation:256*256*3*192
             if self.get_cartoon:
                 verts, faces, normals, values = measure.marching_cubes(out_occ[0,0].cpu().numpy().transpose((2,1,0)), 0.5)
                 verts = transform_Inv(verts,scale=2)
@@ -363,7 +380,10 @@ class strand_inference:
         # color = np.array([255,0,0,255])
         # m = np.identity(3)
         # draw_arrows_by_projection1(os.path.join("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/","DB1"),self.iter["GrowingNet"],draw_occ=True,hair_ori=orientation)
-        m=revert_rot
+        if self.use_cal:
+            m=np.identity(3)
+        else:
+            m=revert_rot
         points_same,points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color,sample_num=self.sample_num)
         mask = np.sum(colors,axis=1)
         colors[np.where(mask==255)]=color
@@ -472,12 +492,11 @@ if __name__=="__main__":
         set_camera(flag=1)
     hair_infe = strand_inference(os.path.dirname(os.path.dirname(__file__)),HairFilterLocal=True,use_modeling=True,use_step=True,\
                                  use_strand=True,Bidirectional_growth=True,gpu_ids=[2],get_cartoon=False)
-    # hair_infe.eval_ori2dtohair()
     save_path = os.path.join(os.path.dirname(__file__),"../data/test/out_paper")
     for g in gender:
         test_dir = os.path.join(os.path.dirname(__file__),"../data/test/paper")
         file_names = os.listdir(test_dir)
-        file_names = ['img_0044.png']#,'乔小刀.jpg'
+        file_names = ['img_0044.png','乔小刀.jpg']#,
         for name in tqdm(file_names[:]):#31:32，19
             # name = "female_20.jpg"
             test_file = os.path.join(test_dir,name)

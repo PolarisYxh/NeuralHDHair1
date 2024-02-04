@@ -26,7 +26,7 @@ class HairModelingHDCalSolver(BaseSolver):
         self.opt = opt
         self.Spat_min_cha=opt.Spat_min_cha
         self.Spat_max_cha=opt.Spat_max_cha
-
+        self.voxel2mesh_m = voxel2mesh_matrix(scale =2)
         self.initialize_networks(opt)
 
         if self.opt.isTrain:
@@ -138,7 +138,6 @@ class HairModelingHDCalSolver(BaseSolver):
                 # gt_orientation = unsample(gt_orientation)#size,3,96,128,128 to size,3,192,256,256
                 # gt_occ=unsample(gt_occ)
 
-
                 out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global= \
                 self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, calibration=calibration, depth_map=depth,resolution=self.opt.resolution,mix=False)
 
@@ -190,9 +189,10 @@ class HairModelingHDCalSolver(BaseSolver):
             # pred_ori=torch.reshape(pred_ori,(128,128,96*3))
             pred_ori=pred_ori.cpu().numpy()
             save_ori_as_mat(pred_ori,self.opt)
-    def inference(self,image,use_step,bust=None,depth=None,norm_depth=None, use_bust=True,name=""):
+    def inference(self,image,use_step,bust=None,calibration=None,norm_depth=None, use_bust=True,name=""):
         self.net_local.eval()
         self.net_global.eval()
+        calibration = torch.from_numpy(calibration@self.voxel2mesh_m)#体素空间变换到裁剪空间
         with torch.no_grad():
             #以下相当于dataloader.generate_test_data()
             image=trans_image(image, self.opt.image_size)
@@ -231,7 +231,7 @@ class HairModelingHDCalSolver(BaseSolver):
             # else:
             #     save_image(image,f"{name}.png")
             #image:带bust,strand2D:depth,Ori2D:不带bust的方向图,net_global,resolution,step=100000
-            out_ori, out_occ,_,_ = self.net_local.test(image,norm_depth,Ori2D,self.net_global,self.opt.resolution)
+            out_ori, out_occ,_,_ = self.net_local.test(image,norm_depth,Ori2D,self.net_global,self.opt.resolution, calibration=calibration)
                 
             out_occ[out_occ>=0.2]=1
             out_occ[out_occ<0.2]=0

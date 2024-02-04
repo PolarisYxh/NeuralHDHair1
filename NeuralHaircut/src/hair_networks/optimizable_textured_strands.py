@@ -23,7 +23,7 @@ import os
 import trimesh
 import cv2
 
-
+from Code.Tools import pyBsplineInterp 
 sys.path.append(os.path.join(sys.path[0], 'k-diffusion'))
 from k_diffusion import config 
 
@@ -51,8 +51,8 @@ def downsample_texture(rect_size, downsample_size):
 
 class OptimizableTexturedStrands(nn.Module):
     def __init__(self, 
-                 path_to_mesh, 
                  num_strands,
+                 path_to_mesh, 
                  max_num_strands,
                  texture_size,
                  geometry_descriptor_size,
@@ -60,18 +60,18 @@ class OptimizableTexturedStrands(nn.Module):
                  decoder_checkpoint_path,
                  path_to_scale = None,
                  cut_scalp=None, 
-                 diffusion_cfg=None
+                 diffusion_cfg=None,
+                 inference_on_other_scalp = False
                  ):
         super().__init__()
-    
-        scalp_vert_idx = torch.load('./NeuralHaircut/data/new_scalp_vertex_idx.pth').long().cuda() # indices of scalp vertices
-        scalp_faces = torch.load('./NeuralHaircut/data/new_scalp_faces.pth')[None].cuda() # faces that form a scalp
-        scalp_uvs = torch.load('./NeuralHaircut/data/new_scalp_uvcoords.pth').cuda()[None] # generated in Blender uv map for the scalp
-
-        # Load FLAME head mesh
-        verts, faces, _ = load_obj("./NeuralHaircut/data/final_scalp.obj", device='cuda')
-        
-        # verts, faces, _ = load_obj(path_to_mesh, device='cuda')
+        self.device = 'cuda'
+        # Load FLAME head mesh  
+        if inference_on_other_scalp:      
+            verts, faces, aux = load_obj(path_to_mesh, device=self.device)
+            scalp_uvs = aux.verts_uvs.to(self.device)[None]
+        else:
+            verts, faces, aux = load_obj("./NeuralHaircut/data/final_scalp.obj", device=self.device)
+            scalp_uvs = torch.load('./NeuralHaircut/data/new_scalp_uvcoords.pth').to(self.device)[None] # generated in Blender uv map for the scalp
         # Transform head mesh if it's not in unit sphere (same scale used for world-->unit_sphere transform)
         self.transform = None
         if path_to_scale:
@@ -82,13 +82,13 @@ class OptimizableTexturedStrands(nn.Module):
             
         head_mesh =  Meshes(verts=[(verts)], faces=[faces.verts_idx]).cuda()
         self.scalp_mesh = Meshes(verts=[(verts)], faces=[faces.verts_idx], textures=TexturesVertex(scalp_uvs)).cuda()
-        from pytorch3d.io import IO
-        IO().save_mesh(self.scalp_mesh, "scalp2.obj")
+        # from pytorch3d.io import IO
+        # IO().save_mesh(self.scalp_mesh, "scalp2.obj")
         # Scaling factor, as decoder pretrained on synthetic data with fixed head scale
         usc_scale = torch.tensor([[0.2579, 0.4082, 0.2580]]).cuda()
         head_scale = head_mesh.verts_packed().max(0)[0] - head_mesh.verts_packed().min(0)[0]
         self.scale_decoder = (usc_scale / head_scale).mean()
-        self.scale_decoder = 1
+        self.scale_decoder = 1/83
         # scalp_verts = head_mesh.verts_packed()[None, scalp_vert_idx]
         # scalp_face_verts = face_vertices(scalp_verts, scalp_faces)[0]
         
@@ -126,14 +126,19 @@ class OptimizableTexturedStrands(nn.Module):
         
         # Initialize the texture decoder network
         self.texture_decoder = UNet(self.encoder_input.shape[1], geometry_descriptor_size + appearance_descriptor_size, bilinear=True)
-
-        self.register_buffer('local2world', self.init_scalp_basis(scalp_uvs))
-
-        # Sample fixed origin points
+        
+        local2world = self.init_scalp_basis(scalp_uvs)
         origins, uvs, face_idx = sample_points_from_meshes(self.scalp_mesh, num_samples=max_num_strands, return_textures=True)
-        self.register_buffer('origins', origins[0])
-        self.register_buffer('uvs', uvs[0])
-
+        if inference_on_other_scalp:
+            self.local2world = local2world
+            self.origins = origins[0]
+            self.uvs = uvs[0]
+        else:
+            self.register_buffer('local2world', local2world)
+            # Sample fixed origin points
+            self.register_buffer('origins', origins[0])
+            self.register_buffer('uvs', uvs[0])
+        
         # Get transforms for the samples
         self.local2world.data = self.local2world[face_idx[0]]
         
@@ -183,13 +188,14 @@ class OptimizableTexturedStrands(nn.Module):
             self.diffuse_mask = diffusion_cfg.get('diffuse_mask', None) #cut_scalep.py中得到的头皮部分的面片
             print('diffuse mask', self.diffuse_mask)
             
-            if self.diffuse_mask: 
+            if os.path.exists(self.diffuse_mask): 
                 self.diffuse_mask = torch.tensor(cv2.imread(self.diffuse_mask) / 255)[:, :, :1].squeeze(-1).cuda()
     
     def init_scalp_basis(self, scalp_uvs):         
-
+        '''每个面片上构建中心为原点的坐标系,《Unity shader入门精要》 P70
+        '''
         scalp_verts, scalp_faces = self.scalp_mesh.verts_packed()[None], self.scalp_mesh.faces_packed()[None]
-        scalp_face_verts = face_vertices(scalp_verts, scalp_faces)[0] 
+        scalp_face_verts = face_vertices(scalp_verts, scalp_faces)[0] #面的索引从顶点坐标中获取每个面的顶点坐标
         
         # Define normal axis
         origin_v = scalp_face_verts.mean(1)
@@ -201,12 +207,13 @@ class OptimizableTexturedStrands(nn.Module):
         bs = full_uvs.shape[0]
         concat_full_uvs = torch.cat((full_uvs, torch.zeros(bs, full_uvs.shape[1], 1, device=full_uvs.device)), -1)
         new_point = concat_full_uvs.mean(1).clone()
-        new_point[:, 0] += 0.001
-        bary_coords = barycentric_coordinates_of_projection(new_point, concat_full_uvs).unsqueeze(1)
+        new_point[:, 0] += 0.0005#assert过不去，超出可以调整
+        bary_coords = barycentric_coordinates_of_projection(new_point, concat_full_uvs).unsqueeze(1)#得到离面片中心点x轴方向0.001的点的重心坐标
         full_verts = scalp_verts[0][scalp_faces[0]]
         origin_t = (bary_coords @ full_verts).squeeze(1) - full_verts.mean(1)
         origin_t /= origin_t.norm(dim=-1, keepdim=True)
-        
+        # i = torch.where((bary_coords.reshape(-1, 3) > 0).sum(-1) != 3)
+        # print(bary_coords.reshape(-1, 3)[2885])
         assert torch.where((bary_coords.reshape(-1, 3) > 0).sum(-1) != 3)[0].shape[0] == 0
         
         # Define bitangent axis
@@ -218,7 +225,6 @@ class OptimizableTexturedStrands(nn.Module):
         
         # local to global 
         R_inv = torch.linalg.inv(R) 
-        
         return R_inv
         
     def forward(self, it=None): 
@@ -326,4 +332,49 @@ class OptimizableTexturedStrands(nn.Module):
             )
             p = (local2world[l:r][:, None] @ p_local[..., None])[:, :, :3, 0] + origins[l:r][:, None] # [num_strands, strang_length, 3]
             strands_list.append(p)
+        return torch.cat(strands_list, dim=0), z_geom, z_app
+    def forward_inference_guides(self, num_strands): 
+        
+        # To sample more strands at inference stage
+        texture = self.texture_decoder(self.encoder_input)
+        self.num_strands = num_strands
+        
+        # Sample from the fixed origins
+        torch.manual_seed(0)
+        idx = torch.randperm(self.max_num_strands, device=texture.device)[:num_strands]
+        origins = self.origins[idx]
+        uvs = self.uvs[idx]
+        local2world = self.local2world[idx]
+
+        # Get latents for the samples
+        z = F.grid_sample(texture, uvs[None, None])[0, :, 0].transpose(0, 1) # num_strands, C
+        
+        z_geom = z[:, :self.geometry_descriptor_size]
+
+        if self.appearance_descriptor_size:
+            z_app = z[:, self.geometry_descriptor_size:]
+        else:
+            z_app = None
+        
+        strands_list = []
+       
+        l, r = 0, num_strands
+        z_geom_batch = z_geom[l:r]
+        v = self.strand_decoder(z_geom_batch) / self.scale_decoder # [num_strands, strand_length - 1, 3]
+    
+        p_local = torch.cat([
+                torch.zeros_like(v[:, -1:, :]), 
+                torch.cumsum(v, dim=1)
+            ], 
+            dim=1
+        )
+        p = (local2world[l:r][:, None] @ p_local[..., None])[:, :, :3, 0] + origins[l:r][:, None] # [num_strands, strang_length, 3]
+       
+        distances = torch.norm(p[:,1:] - p[:,:-1], dim=2)
+        length = distances.sum(dim=1)
+        sample_num = (length//1).to(torch.int32).detach().cpu().numpy()
+        p = p.detach().numpy().reshape((-1,3))
+        final_segment = np.array(list(range(0,len(p),100)))
+        final_strand_del_by_ori_same=pyBsplineInterp.GetBsplineInterpDifnum(p,final_segment,sample_num,3)
+        final_strand_del_by_ori_same=final_strand_del_by_ori_same.reshape((-1,sample_num,3))
         return torch.cat(strands_list, dim=0), z_geom, z_app

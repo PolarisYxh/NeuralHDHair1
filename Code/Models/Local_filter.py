@@ -163,12 +163,12 @@ class Local_Filter(BaseNetwork):
         # return out_ori_low,self.out_occ,out_ori_low,out_occ_low,self.loss_local,self.loss_global
 
 
-    def test(self,image,depth,Ori2D,net_global,resolution,step=100000):
+    def test(self,image,depth,Ori2D,net_global,resolution,calibration=None,step=100000):
         D, H, W = resolution
         self.out_ori = torch.zeros(1, 3, D, H, W).cuda()
         self.out_occ = torch.zeros(1, 1, D, H, W).cuda()
         with torch.no_grad():
-            out_ori_low, out_occ_low=net_global.test(image,Ori2D,resolution,step=step)
+            out_ori_low, out_occ_low=net_global.test(image,Ori2D,resolution,calibration=calibration,step=step)
         feat_ori, feat_occ = net_global.get_phi()
         # from Tools.utils import show
         # import numpy as np
