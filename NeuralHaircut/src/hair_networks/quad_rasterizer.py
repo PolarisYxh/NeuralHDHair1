@@ -78,10 +78,6 @@ class QuadRasterizer(torch.nn.Module):
             tvec=cam_extr[:3, 3].unsqueeze(0),
             image_size=torch.tensor([self.render_size, self.render_size]).unsqueeze(0)
         ).cuda()#[1,2],512,512
-    #     intri = np.array([[ 2.75478937,  0.        ,  0.        ,  0.        ],
-    #    [ 0.        ,  2.75478937,  0.        ,  0.        ],
-    #    [ 0.        ,  0.        , -3.67372718, -1.00036737],
-    #    [ 0.        ,  0.        ,  0.        ,  1.        ]])[None]
         cameras = align_pyrender_camera(pos=cam_pos[None],intri=cam_intr[None],device=feats.device)[0]
         hair_verts, hair_faces, indices = build_quads(hair @ cameras.R[0], w=0.0005)
         hair_verts = hair_verts @ cameras.R[0].T

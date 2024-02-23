@@ -377,29 +377,31 @@ class GrowingNetSolver(BaseSolver):
 
         return return_list
     def generate_random_root(self,occ):
-        samle_voxel_index =np.where(occ>0)
+        samle_voxel_index =np.where(occ>0)#HWD
         samle_voxel_index=np.array(samle_voxel_index)
         samle_voxel_index=samle_voxel_index.transpose(1,0)
-        
         # back = np.min(samle_voxel_index[:,0], axis=0)#前后
         # front = np.max(samle_voxel_index[:,0], axis=0)
-        low1 = np.min(samle_voxel_index[:,1], axis=0)#上下
-        high1 = np.max(samle_voxel_index[:,1], axis=0)
+        low1 = np.min(samle_voxel_index[:,1], axis=0)#上
+        high1 = np.max(samle_voxel_index[:,1], axis=0)#下
         # left = np.min(samle_voxel_index[:,2], axis=0)#左右
         # right = np.max(samle_voxel_index[:,2], axis=0)
         mid = (low1+high1)//2
         scale = max(occ.shape)//128
-        self.pt_num = int((high1-low1)*1.5)
+        self.pt_num = min(occ.shape[1],int((high1-low1)*1.8))
         low = np.min(self.roots[:,1],axis=0)
         high = np.max(self.roots[:,1],axis=0)
-        samle_voxel_index2 = samle_voxel_index[np.where(samle_voxel_index[:,1]<=high)][...,:3]#对头皮毛孔以上的体素进行采样
         # if high1-low1>90:
         #     random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root*2)]
         if mid>40*scale:
+            samle_voxel_index2 = samle_voxel_index[np.where(samle_voxel_index[:,1]<=high)][...,:3]#对头皮毛孔以上的体素进行采样
+            random_points1=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)]
             samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==mid)][...,:3]
             random_points=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root//3)]
-            random_points=np.append(random_points,samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)],axis=0)
-            # random_points=samle_voxel_index2[np.random.randint(0,samle_voxel_index2.shape[0]-1,size=self.opt.num_root)]
+            random_points=np.append(random_points,random_points1,axis=0)
+            # samle_voxel_index1 = samle_voxel_index[np.where(samle_voxel_index[:,1]==(high1+mid)//2)][...,:3]
+            # random_points1=samle_voxel_index1[np.random.randint(0,samle_voxel_index1.shape[0]-1,size=self.opt.num_root//3)]
+            # random_points=np.append(random_points,random_points1,axis=0)
         else:
             self.pt_num = 72*scale
             random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
@@ -451,7 +453,7 @@ class GrowingNetSolver(BaseSolver):
         self.model.eval()
         with torch.no_grad():
             # ori = scipy.io.loadmat("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1/Ori_gt.mat", verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
-            ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
+            ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96,HW3D
             ori = ori.transpose([0, 1, 3, 2])# ori: 128*128*96*3
 
             transfer = True
@@ -549,7 +551,8 @@ class GrowingNetSolver(BaseSolver):
                 # datas=self.generate_test_data(self.opt.growInv)
             final_strand_del_by_ori,final_segment = self.get_pred_strands(datas,ori_orient=None,\
                                                                           use_rule=False)#ori_orient=ori.cpu().numpy().transpose((1,2,3,0)),
-            short_thres = np.mean(final_segment)*0.284
+            # 删除过短的发丝
+            short_thres = np.mean(final_segment)*0.1
             index=np.where(final_segment<short_thres)[0]
             start=0
             index1 = []

@@ -63,7 +63,7 @@ class Handler(object):
                                     Bidirectional_growth=True,gpu_ids=load_dict['gpus'], HairFilterLocal=True)
         self.cache_path = os.path.join(rFolder,'cache')
         if not load_dict['use_modeling']:#对齐到Unity渲染工具
-            self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
+            self.m = transform.SimilarityTransform(scale=[8.5,7.76,7.9],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
         else:
             self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[0,-13.,-0.31],dimensionality=3)
         self.is_running = True

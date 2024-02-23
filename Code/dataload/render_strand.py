@@ -11,6 +11,25 @@ plat = platform.system().lower()
 if plat != 'windows':
     os.environ['PYOPENGL_PLATFORM'] = 'egl'
 def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
+    """_summary_
+
+    Args:
+        strands (_type_): _description_
+        segments (_type_): _description_
+        mesh (_type_, optional): _description_. Defaults to None.
+        width (int, optional): _description_. Defaults to 256.
+        vertex_colors (_type_, optional): _description_. Defaults to np.array([0, 0, 0, 255]).
+        orientation (_type_, optional): _description_. Defaults to None.
+        mask (bool, optional): _description_. Defaults to False.
+        intensity (float, optional): _description_. Defaults to 3.0.
+        strand_color (_type_, optional): _description_. Defaults to None.
+        offscreen (bool, optional): _description_. Defaults to True.
+        cam_pos (list, optional): _description_. Defaults to [].
+        matrix (list, optional): _description_. Defaults to [].
+
+    Returns:
+        color: 方向图，R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
+    """    
     scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1],bg_color=[0,0,0])
     if mesh:
         try:

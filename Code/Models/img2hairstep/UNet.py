@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-
+from Models.BaseNetwork import BaseNetwork
 class Conv(nn.Module):
     def __init__(self, C_in, C_out):
         super(Conv, self).__init__()
@@ -80,7 +80,7 @@ class Body(nn.Module):
 
         return O4
 
-class Model(nn.Module):
+class Model(BaseNetwork):
 
     def __init__(self):
         super(Model, self).__init__()

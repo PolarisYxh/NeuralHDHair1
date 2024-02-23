@@ -55,8 +55,8 @@ class filter_crop:
         self.use_strand = use_strand#使用hairstep标准流程，用sam分割及hairstep strand生成方向图
         if use_strand:
             self.strandmodel = strandModel().cuda()
-            # self.strandmodel = torch.nn.DataParallel(self.strandmodel)
-            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-267000.pth")))#
+            # self.strandmodel = torch.nn.DataParallel(self.strandmodel) #第一次新增数据后267000；第二次新增：205002；只用短发训练：30000
+            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-205002.pth")))
             self.strandmodel.eval()
         self.use_depth = use_depth
         if use_depth:
@@ -88,8 +88,25 @@ class filter_crop:
             # cv2.imwrite("norm_depth.png",(depth_pred_norm*255).astype('uint8'))
             return depth_pred_norm
     def pyfilter2neuralhd(self,img,gender="female",image_name="",use_gt=False):
-        #pyfilter输出的和hairstep： B:第1通道，（0,1）表示（向右，向左）；G:第二通道，（0,1）表示（，向下）
-        #neuralhd R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
+        """_summary_
+
+        Args:
+            img (_type_): _description_
+            gender (str, optional): _description_. Defaults to "female".
+            image_name (str, optional): _description_. Defaults to "".
+            use_gt (bool, optional): 分割图用gt图. Defaults to False.
+
+        Returns:
+            strand2d: 方向图，R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
+            bust:人体rgb图
+            avg_color:头发平均颜色
+            crop_image2:对齐到标准头后的头发分割图
+            revert_rot,:人脸欧拉角
+            self.cam_intri:相机内参矩阵
+            self.cam_extri:相机外参矩阵
+        """        
+        #pyfilter输出的和hairstep数据集中方向图说明： B:第1通道，（0,1）表示（向右，向左）；G:第二通道，（0,1）表示（向上，向下）;R:255
+        #neuralhd即该函数输出的方向图说明：          R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）;B:0
         self.use_gt=use_gt
         crop_image,bust,img1 = self.get_hair_seg(img,gender,image_name)
         if self.use_gt:
@@ -126,8 +143,16 @@ class filter_crop:
             crop_image = Variable(torch.from_numpy(crop_image).permute(2, 0, 1).float().unsqueeze(0)).cuda()
             strand_pred = self.strandmodel(crop_image)
             strand_pred = np.clip(strand_pred.permute(0, 2, 3, 1)[0].cpu().detach().numpy(), 0., 1.)  # 512 * 512 *60
+            # hairstep 数据集中的方向图，用于对比，debug
+            # strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
+            # strand2d[:,:,:2]=strand_pred[:,:,[1,0]]
+            # strand2d[:,:,2]=1.0
+            # strand2d[mask1==0]=[0,0,0]
+            # strand2d=(strand2d*255).astype('uint8')
+            # cv2.imwrite(image_name.split('.')[0]+"_ori2_0.png",strand2d)
+            # 方向图网络需要输入的方向图
             strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
-            strand2d[:,:,1:3]=strand_pred
+            strand2d[:,:,1:3]=strand_pred#strand_pred:0通道
             strand2d[:,:,1]=1-strand2d[:,:,1]
             strand2d[:,:,2]=1-strand2d[:,:,2]
             strand2d[mask1==0]=[0,0,0]
@@ -136,7 +161,7 @@ class filter_crop:
             avg_color=np.append(avg_color,255)
             return strand2d,bust,avg_color,crop_image2,self.revert_rot,self.cam_intri,self.cam_extri
             # strand_pred = np.concatenate([mask+body*0.5, strand_pred*mask], axis=-1)
-        import pyfilter#have to install apt-get install libopencv-dev==4.2.0 and run in python 3.8.*
+        import pyfilter#first generate it in strandhair HairNet_orient2D repo;have to install apt-get install libopencv-dev==4.2.0 and run in python 3.8.*，已经被弃用
         avg_color,image1=self.get_hair_avgcolor(img1,crop_image)
         mask = cv2.resize(mask,(512,512))
         crop_image= cv2.resize(crop_image,(512,512))
@@ -445,9 +470,10 @@ class filter_crop:
         return aligned,bust,framesForHair[0]
 if __name__=="__main__":
     gender = ['male','female']
-    test_dir="./data/test/paper"
+    test_dir="./data/test/strand2d"
     file_names = os.listdir(test_dir)
-    file_names = ["female_51.jpg","female_53.jpg","female_12.jpg","male_40.jpg","female_31.jpg"]
+    test_dir="./data/test"
+    file_names = ["image1.png"]
     os.environ['CUDA_VISIBLE_DEVICES'] ="4"
     
     # body = trimesh.load_mesh("/app/female_halfbody_medium_join.obj")
@@ -462,5 +488,7 @@ if __name__=="__main__":
         # img = cv2.imread("/home/yxh/Documents/company/NeuralHDHair/data/Bust/body_0.png")
         fil = filter_crop(os.path.join(os.path.dirname(__file__),"../"),\
                             os.path.join(os.path.dirname(__file__),"../data/test"),\
-                            use_step=False,use_depth=False,use_strand=True)
-        fil.pyfilter2neuralhd(img,image_name=name)
+                            use_step=True,use_depth=False,use_strand=True)
+        strand,_,_,x,_,_,_ = fil.pyfilter2neuralhd(img,image_name=name)
+        cv2.imwrite(name.split('.')[0]+"_ori1.png",255-strand)
+        cv2.imwrite(name.split('.')[0]+"_seg1.png",x)

@@ -26,17 +26,20 @@ class origin_step_loader(base_loader):
     def generate_corpus(self,is_train=True):
         # exclude the tail, to do improve this
         if is_train:
-            self.datas = read_json(os.path.join(self.root,"split_train.json"))
+            self.datas = read_json(os.path.join(self.root,"split_train1.json"))
+            # self.datas = list(filter(lambda a:f"XH" in a and "004" not in a, self.datas))
+            print(f"train images data length:{len(self.datas)}")
         else:
-            self.datas = read_json(os.path.join(self.root,"split_test.json"))
+            self.datas = read_json(os.path.join(self.root,"split_test1.json"))
+            print(f"test images data length:{len(self.datas)}")
         device = torch.device("cuda") if torch.cuda.is_available() and len(self.opt.gpu_ids)>0 else torch.device("cpu")
         crit_vgg = VGGLoss(model='vgg19', gpu_ids = self.opt.gpu_ids, layer=35)
         random.shuffle(self.datas)
         for x in self.datas[:]:
-            target=cv2.imread(os.path.join(self.root,"strand_map",x))#R:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向下，向上）
+            target=cv2.imread(os.path.join(self.root,"strand_map",x))#R：255,B:（0,1）表示（向右，向左）；G：第二通道，（0,1）表示（向上，向下）
             # TODO:两种方式得到的segment图不太一样，哪个比较好 后续进行实验
-            # target0=cv2.resize(target, (256, 256))# TODO: size大小到底是多少
-            target0=target
+            target0=cv2.resize(target, (512, 512))# TODO: size大小到底是多少
+            # target0=target
             parse = target0[:, :, 2]
             M_sum = torch.tensor(len(np.where(parse>200)[0]))
             
@@ -68,17 +71,18 @@ class origin_step_loader(base_loader):
     def __getitem__(self, index):
         x=self.datas[index]
         input=cv2.imread(os.path.join(self.root,"img",x))
+        input= cv2.resize(input,(512,512))
         seg =  cv2.imread(os.path.join(self.root,"seg",x))
+        seg= cv2.resize(seg,(512,512))
         seg[seg<127]=0
         seg[seg>=127]=1
         input = input*seg
-        # input= cv2.resize(input,(256,256))
         
         input=input.transpose([2,0,1])
         input=torch.from_numpy(input) / 255
         # torchvision.utils.save_image(input.unsqueeze(0).cpu(),"test3.png")
         target0=cv2.imread(os.path.join(self.root,"strand_map",x))
-        # target0=cv2.resize(target, (256, 256))# TODO: size大小到底是多少
+        target0=cv2.resize(target0, (512, 512))# TODO: size大小到底是多少
         parse = target0[:, :, 2]
         target0[np.where(parse<200)]=[0,0,0]
         target0=target0[:,:,[1,0]]

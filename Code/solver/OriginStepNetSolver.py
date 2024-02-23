@@ -136,8 +136,8 @@ class OriginStepNetSolver(BaseSolver):
                 if iter_counter.needs_saving():
                     print('saving the latest model (epoch %d, total_steps %d)' %
                           (epoch, iter_counter.total_steps_so_far))
-                    self.save_network(self.model, 'StepNet', iter_counter.total_steps_so_far, self.opt)
-                    self.save_network(self.model, 'StepNet', 'latest', self.opt)
+                    self.save_network(self.model, 'OriginStepNet', iter_counter.total_steps_so_far, self.opt)
+                    self.save_network(self.model, 'OriginStepNet', 'latest', self.opt)
 
                     iter_counter.record_current_iter()
             self.update_learning_rate(epoch)

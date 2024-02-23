@@ -116,21 +116,26 @@ class HairModelingHDSolver(BaseSolver):
                 iter_counter.record_one_iteration()
 
                 image,gt_orientation,gt_occ,Ori2D,add_info,depth= self.preprocess_input(datas)#ori.png(orientation map),(size,3,96,128,128),(size,1,96,128,128),
-                # save_image(add_info,'test.png')
                 # unsample = torch.nn.Upsample(scale_factor=self.opt.resolution[0]//96, mode='trilinear')
                 # gt_occ_low=gt_occ.clone()
                 # gt_orientation = unsample(gt_orientation)#size,3,96,128,128 to size,3,192,256,256
                 # gt_occ=unsample(gt_occ)
-
+                ### for debug output image
+                # save_image(add_info,'test.png')
+                # if image.shape[1]==2:
+                #     save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],f"XH002_1.png")
+                # else:
+                #     save_image(image,f"XH002_1.png")
 
                 out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, depth_map=depth,resolution=self.opt.resolution)
+                ### 头发模型的gt方向图到预测的方向场的可视化
                 # import trimesh
                 # from dataload.render_strand import render_cartoon
                 # from skimage import measure
                 # out_occ_hd[out_occ_hd>=0.2]=1
                 # out_occ_hd[out_occ_hd<0.2]=0
-                # torch.save(out_occ_hd,"/data/HairStrand/NeuralHDHairData/DB3/out_occ.pt")
-                # torch.save(out_ori_hd,"/data/HairStrand/NeuralHDHairData/DB3/out_ori.pt")
+                # torch.save(out_occ_hd,"/data/HairStrand/NeuralHDHairData/XH002/out_occ1.pt")
+                # torch.save(out_ori_hd,"/data/HairStrand/NeuralHDHairData/XH002/out_ori1.pt")
                 # visualizer.board_current_errors(self.loss_local)
                 # visualizer.board_current_errors(self.loss_global)
                 # verts, faces, normals, values = measure.marching_cubes(out_occ_hd[0,0].cpu().detach().numpy().transpose((2,1,0)), 0.5)
@@ -177,18 +182,25 @@ class HairModelingHDSolver(BaseSolver):
     def test(self,dataloader):
         with torch.no_grad():
             datas = dataloader.generate_test_data()
-            image, gt_orientation, gt_occ = self.preprocess_input(datas)
-            out_ori, out_occ = self.model(image)
-
-            pred_ori=out_ori*gt_occ
-            # pred_ori=(pred_ori+1)/2
-            # gt_orientation=(gt_orientation+1)/2
-            # save_image(pred_ori[:,:,45,:,:],'test1.png')
-            # save_image(gt_orientation[:,:,45,:,:],'test2.png')
-            pred_ori=pred_ori.permute(0,2,3,4,1)
-            # pred_ori=torch.reshape(pred_ori,(128,128,96*3))
-            pred_ori=pred_ori.cpu().numpy()
-            save_ori_as_mat(pred_ori,self.opt)
+            image,gt_orientation,gt_occ,Ori2D,add_info,depth= self.preprocess_input(datas)
+            out_ori_hd, out_occ_hd, out_ori_low, out_occ_low, self.loss_local,self.loss_global=self.net_local(image,add_info, gt_occ, gt_orientation, self.net_global, depth_map=depth,resolution=self.opt.resolution)
+            import trimesh
+            from dataload.render_strand import render_cartoon
+            from skimage import measure
+            out_occ_hd[out_occ_hd>=0.2]=1
+            out_occ_hd[out_occ_hd<0.2]=0
+            torch.save(out_occ_hd,"/data/HairStrand/NeuralHDHairData/DB3/out_occ1.pt")
+            torch.save(out_ori_hd,"/data/HairStrand/NeuralHDHairData/DB3/out_ori1.pt")
+            
+            # pred_ori=out_ori*gt_occ
+            # # pred_ori=(pred_ori+1)/2
+            # # gt_orientation=(gt_orientation+1)/2
+            # # save_image(pred_ori[:,:,45,:,:],'test1.png')
+            # # save_image(gt_orientation[:,:,45,:,:],'test2.png')
+            # pred_ori=pred_ori.permute(0,2,3,4,1)
+            # # pred_ori=torch.reshape(pred_ori,(128,128,96*3))
+            # pred_ori=pred_ori.cpu().numpy()
+            # save_ori_as_mat(pred_ori,self.opt)
     def inference(self,image,bust=None,depth=None,norm_depth=None, use_bust=True,name=""):
         self.net_local.eval()
         self.net_global.eval()
@@ -217,7 +229,6 @@ class HairModelingHDSolver(BaseSolver):
             # 以下相当于self.preprocess_input1
             image = image.type(torch.float)
             Ori2D = Ori2D.type(torch.float)
-            # save_image(image,"1.png")
             if not self.opt.use_ori_addinfo:
                 norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
                 norm_depth = norm_depth.cuda() if self.use_gpu() else norm_depth
@@ -225,10 +236,10 @@ class HairModelingHDSolver(BaseSolver):
                 image = image.cuda()
                 Ori2D = Ori2D.cuda()
                 
-            # if image.shape[1]==2:
-            #     save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],f"{name}.png")
-            # else:
-            #     save_image(image,f"{name}.png")
+            if image.shape[1]==2:
+                save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],f"{name}.png")
+            else:
+                save_image(image,f"{name}.png")
             #image:带bust,strand2D:depth,Ori2D:不带bust的方向图,net_global,resolution,step=100000
             out_ori, out_occ,_,_ = self.net_local.test(image,norm_depth,Ori2D,self.net_global,self.opt.resolution)
                 

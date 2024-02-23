@@ -90,7 +90,7 @@ class strand_inference:
             # self.opt.growInv=False
             # self.growing_solver = GrowingNetSolver()
             # self.growing_solver.initialize(self.opt)
-            self.use_cal=True
+            self.use_cal=False
             if self.use_cal:
                 self.opt.model_name=="HairModelingHDCal"
                 self.opt.save_root="checkpoints/HairModelingHDCal"
@@ -164,23 +164,29 @@ class strand_inference:
         # self.hd_solver=HairModelingHDSolver()
         # self.hd_solver.initialize(opt)
     def eval_ori2dtohair(self):
+        """main.py:  评估方向场网络模型，从gt方向图 到 方向场网络预测的方向场
+        eval_ori2dtohair该函数输入方向场网络gt方向图 输出的 方向场网络预测的方向场，输出头发进行评估
+            
+        Returns:
+            _type_: _description_
+        """        
         import torch
         import numpy as np
         has_orientation = True
-        has_ori2d=True
-        if has_ori2d:
+        has_model=True
+        if has_model:
             pass
             
-        if has_orientation:
-            occ=torch.load("/data/HairStrand/NeuralHDHairData/DB3/out_occ.pt")#get out_occ.pt from main.py by use gt hair model
-            orientation=torch.load("/data/HairStrand/NeuralHDHairData/DB3/out_ori.pt")
+        if has_orientation:#从已经保存的方向场得到头发，用于评估方向场和生长网络
+            occ=torch.load("/data/HairStrand/NeuralHDHairData/XH002/out_occ1.pt")#get out_occ.pt from main.py by use gt hair model,
+            orientation=torch.load("/data/HairStrand/NeuralHDHairData/XH002/out_ori1.pt")
             # verts, faces, normals, values = measure.marching_cubes(occ[0,0].cpu().detach().numpy().transpose((2,1,0)), 0.5)
             # verts = transform_Inv(verts,scale=2)
             # hair_mesh = trimesh.Trimesh(vertices=verts,faces=faces, process=False)
             # hair_mesh = trimesh.smoothing.filter_laplacian(hair_mesh, iterations=10)
             # hair_mesh.export(f"/data/HairStrand/NeuralHDHairData/DB3/mesh.obj")
-            rgb_image = cv2.imread("/data/HairStrand/NeuralHDHairData/DB3/20231219_203605_manual.png")
-            rgb_image=cv2.resize(rgb_image,(640,640))
+            segrgb_image = cv2.imread("/data/HairStrand/NeuralHDHairData/DB3/20231219_203605_manual.png")
+            segrgb_image=cv2.resize(segrgb_image,(640,640))
             orientation = orientation*occ
         
             orientation=orientation.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
@@ -191,7 +197,7 @@ class strand_inference:
             orientation=orientation.reshape(H ,W,C*D)
         m=np.identity(3)
         color = [0,0,0,255]
-        points_same,points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color, sample_num=self.sample_num)
+        points_same,points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=segrgb_image,avg_color=color, sample_num=self.sample_num)
         # mask = np.sum(colors,axis=1)
         # colors[np.where(mask==255)]=color
         sample_num=self.sample_num
@@ -204,7 +210,7 @@ class strand_inference:
             points_same = np.array(points_same).reshape([-1,3])
             if connect:
                 sample_num=self.sample_num+1
-        use_unity = True
+        use_unity = False
         if use_unity:
             import base64
             # points=np.load("/media/yxh/My Passport/ths/NeuralHDHairData/DB3/DB3.npy")
@@ -244,22 +250,44 @@ class strand_inference:
         # set_camera()
         logging.info("enter strand2d")
         if  self.HairFilterLocal:
-            ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
+            ori2D,bust,color,segrgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
         else:
             imgB64 = cvmat2base64(image)
-            ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.request_HairFilter(name,'img',imgB64)
+            ori2D,bust,color,segrgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.request_HairFilter(name,'img',imgB64)
         logging.info("leave strand2d,enter strand3d")
-        # kernel = np.ones((3,3),np.uint8)
-        # ori2D = cv2.erode(ori2D,kernel,iterations=1)
         debug=True
         if debug:
-            cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
-            cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-            cv2.imwrite(f"{self.opt.test_file}_rgb.png",rgb_image)
-            cv2.imwrite(f"{self.opt.test_file}_color.png",color)
-            np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
-            np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
-            np.save(f"{self.opt.test_file}_cam_extri.npy",cam_extri)
+            # cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
+            # cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            # cv2.imwrite(f"{self.opt.test_file}_rgb.png",segrgb_image)
+            # cv2.imwrite(f"{self.opt.test_file}_color.png",color)
+            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            # np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
+            # np.save(f"{self.opt.test_file}_cam_extri.npy",cam_extri)
+            has_ori2d=True#用gt ori2d测试
+            if has_ori2d:
+                strand_pred = cv2.imread("/data/HairStrand/HiSa_HiDa/strand_map/XH002.png")
+                strand_pred=cv2.resize(strand_pred,(512,512))
+                # 方向图网络需要输入的方向图
+                strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
+                strand2d[:,:,1:3]=strand_pred[:,:,[1,0]]#strand_pred:0通道
+                strand2d[:,:,1]=255-strand2d[:,:,1]
+                strand2d[:,:,2]=255-strand2d[:,:,2]
+                mask1 = cv2.imread(f"/data/HairStrand/HiSa_HiDa/seg/XH002.png")
+                mask1=cv2.resize(mask1,(512,512))
+                mask1 = cv2.cvtColor(mask1,cv2.COLOR_RGB2GRAY)
+                strand2d[mask1<127]=[0,0,0]
+                ori2D=strand2d
+                cv2.imwrite("testx.png",ori2D)
+                bust=(cv2.imread(f"{self.opt.test_file}_bust.png")/255.)[:,:,0]
+                # segrgb_image=cv2.imread(f"{self.opt.test_file}_rgb.png")
+                segrgb_image =cv2.imread("/data/HairStrand/HiSa_HiDa/img/XH002.png")
+                segrgb_image=cv2.resize(segrgb_image,(512,512))
+                segrgb_image[mask1==0] =[0,0,0]
+                color=cv2.imread(f"{self.opt.test_file}_color.png")[:,0,0]
+                revert_rot=np.load(f"{self.opt.test_file}_revert_rot.npy")
+                cam_intri=np.load(f"{self.opt.test_file}_cam_intri.npy")
+                cam_extri=np.load(f"{self.opt.test_file}_cam_extri.npy")
         depth_norm = None
         if self.opt.input_nc==3 or self.use_depth:
             if not self.use_strand:
@@ -278,9 +306,9 @@ class strand_inference:
                 # cv2.imshow("4",mask)
                 # cv2.waitKey()
             if  self.HairFilterLocal:
-                depth_norm=self.img_filter.get_depth(rgb_image,mask)
+                depth_norm=self.img_filter.get_depth(segrgb_image,mask)
             else:
-                rgbB64 = cvmat2base64(rgb_image)
+                rgbB64 = cvmat2base64(segrgb_image)
                 maskB64 = cvmat2base64(mask)
                 depth_norm = self.img_filter.request_depth(name,'depth',rgbB64,maskB64)#dtype('float64')
         if not self.use_modeling:
@@ -317,7 +345,7 @@ class strand_inference:
             # for debug growing net
             ori2D = cv2.imread(f"{self.opt.test_file}_ori.png")
             # cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-            rgb_image = cv2.imread(f"{self.opt.test_file}_rgb.png")
+            segrgb_image = cv2.imread(f"{self.opt.test_file}_rgb.png")
             # cv2.imwrite(f"{self.opt.test_file}_color.png",color)
             revert_rot = np.load(f"{self.opt.test_file}_revert_rot.npy")
             cam_intri = np.load(f"{self.opt.test_file}_cam_intri.npy")
@@ -327,8 +355,8 @@ class strand_inference:
             
             from NeuralHaircut.run_strands_optimization import Runner
             runner = Runner("./configs/monocular/neural_strands_w_camera_fitted.yaml", "person_0","monocular",hair_conf_path="./configs/hair_strands_textured.yaml", exp_name="second_stage_person_0")
-            image = torch.from_numpy(rgb_image)
-            mask = cv2.cvtColor(rgb_image,cv2.RGB2GRAY)
+            image = torch.from_numpy(segrgb_image)
+            mask = cv2.cvtColor(segrgb_image,cv2.RGB2GRAY)
             mask[mask>0]=255
             #ori:128*128*3*96
             ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1])# ori: 128*128*3*96
@@ -376,7 +404,7 @@ class strand_inference:
         # import scipy
         # orientation = scipy.io.loadmat("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/DB1/Ori_gt.mat", verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
         # orientation = np.load(os.path.join("/media/yxh/My Passport/ths/neuraldata1","DB1/Ori_gt_hg.npy"))
-        # rgb_image = np.zeros((256,256,3))
+        # segrgb_image = np.zeros((256,256,3))
         # color = np.array([255,0,0,255])
         # m = np.identity(3)
         # draw_arrows_by_projection1(os.path.join("/home/yxh/Documents/company/NeuralHDHair/data/Train_input/","DB1"),self.iter["GrowingNet"],draw_occ=True,hair_ori=orientation)
@@ -384,7 +412,7 @@ class strand_inference:
             m=np.identity(3)
         else:
             m=revert_rot
-        points_same,points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=rgb_image,avg_color=color,sample_num=self.sample_num)
+        points_same,points,segments,colors = self.growing_solver.inference(orientation,m,hair_img=segrgb_image,avg_color=color,sample_num=self.sample_num)
         mask = np.sum(colors,axis=1)
         colors[np.where(mask==255)]=color
         #旋转点

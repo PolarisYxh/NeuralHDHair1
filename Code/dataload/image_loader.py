@@ -45,7 +45,7 @@ class image_loader(base_loader):
             self.all_data = get_all_the_data1(self.root,self.opt.is_rot)
             self.train_corpus=self.all_data
         else:
-            self.train_corpus = self.get_test_data(self.root,self.opt.is_rot)
+            self.train_corpus = self.get_test_data(self.root)#,self.opt.is_rot
 
         self.train_nums = len(self.train_corpus)
         if is_train:
@@ -78,7 +78,7 @@ class image_loader(base_loader):
         y=random.randint(-30,30)
         # y=-y if random.randint(0,1)==1 else y
         ang = [y,x]
-        rand = True
+        rand = False
         if not rand:
             ang = [0,0]
             flip=False
@@ -104,7 +104,9 @@ class image_loader(base_loader):
         ori_list = ori_list[:,[2,1,0]]
         segments = (np.ones(int(len(strand)/100))*100).astype("int")
         ori_list = ori_list.reshape((-1,100,3))
-        _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=True)#depth:0-1 normalize
+        depth=np.load('XH002_depth.npy')
+        img2 = np.load('XH002_img.npy')
+        # _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=True)#depth:0-1 normalize
         oriImg1 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
         mask_area = np.where(oriImg1!=0)
         mask = np.zeros_like(oriImg1)
