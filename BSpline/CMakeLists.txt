@@ -42,4 +42,5 @@ INCLUDE_DIRECTORIES(
 
 # add_executable(BsplineInterpTest ${SOURCE_FILES} )
 pybind11_add_module(pyBsplineInterp ${SOURCE_FILES1})
+pybind11_add_module(GetBsplineInterpDifnum ${SOURCE_FILES1})
 

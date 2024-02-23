@@ -10,7 +10,7 @@ import platform
 plat = platform.system().lower()
 if plat != 'windows':
     os.environ['PYOPENGL_PLATFORM'] = 'egl'
-def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
+def render_strand(strands,segments,inference=True,mesh=None,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
     """_summary_
 
     Args:
@@ -122,21 +122,28 @@ def render_strand(strands,segments,mesh=None,width=256,vertex_colors=np.array([0
             colors.append(color)
             # cv2.imshow("1",color)
             # cv2.waitKey()
+    if not inference:
+        matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
+        matrix.append(pc.get_projection_matrix())
+        # print(pc.get_projection_matrix())
+        matrix.append(np.linalg.inv(scene.main_camera_node.matrix))
     r.delete()
     inds = (depth != 0)
     depth[inds] = (depth[inds]-near)/(cam+far-near)#(96*0.00567194)
     # cv2.imwrite("2.png",(depth*255).astype('uint8'))
     depth1 = depth.copy()
 
-    matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
-    # 用奇胜透视投影相机得到的内外参,表示奇胜默认的源照片拍摄的相机内外参
-    near=2.5
-    cam = 0.28347224+near
-    far = 0.261034
-    pc = pyrender.PerspectiveCamera(yfov=np.deg2rad(15),znear=near,zfar=cam+far,aspectRatio=aspectRatio)
-    camera_pose = transform.SimilarityTransform(translation=(-0.00703244, 1.58652416, cam), rotation=(np.deg2rad(0),0,0), dimensionality=3).params
-    matrix.append(pc.get_projection_matrix())
-    matrix.append(np.linalg.inv(camera_pose))
+    if inference:
+        # 推理时  用奇胜透视投影相机得到的内外参,表示奇胜默认的源照片拍摄的相机内外参
+        near=2.5
+        cam = 0.28347224+near
+        far = 0.261034
+        pc = pyrender.PerspectiveCamera(yfov=np.deg2rad(15),znear=near,zfar=cam+far,aspectRatio=aspectRatio)
+        #相机标准位置还是使用我这边计算得到的，人脸位姿之后可以使用奇胜优化得到的位姿数据
+        camera_pose = transform.SimilarityTransform(translation=(-0.00703244, 1.58652416, cam), rotation=(np.deg2rad(0),0,0), dimensionality=3).params
+        matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
+        matrix.append(pc.get_projection_matrix())
+        matrix.append(np.linalg.inv(camera_pose))
     return depth, depth1,color
 def render_cartoon(hair_mesh,mesh=None,width=256,hair_colors = np.array([0, 0, 0, 255]),mesh_colors=np.array([255, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
     scene = pyrender.Scene(ambient_light=[0.1, 0.1, 0.1],bg_color=[255,255,255])

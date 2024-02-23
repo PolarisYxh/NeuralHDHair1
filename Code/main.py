@@ -19,6 +19,7 @@ if __name__ == '__main__':
     if plat != 'windows':
         os.environ['PYOPENGL_PLATFORM'] = 'egl'
         os.environ['EGL_DEVICE_ID']=str(opt.gpu_ids[0])
+        print(f"egl gpu {str(opt.gpu_ids[0])}")
     iter_counter = IterationCounter(opt, 0)
     visualizer=Visualizer(opt)
     dataloader=data_loader(opt)

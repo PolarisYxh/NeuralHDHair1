@@ -3,3 +3,4 @@
 /pretrained_models
 /SMPLX_NEUTRAL_2020.npz
 /test/img_0044/img_0044_orientation.npy
+*.pyc

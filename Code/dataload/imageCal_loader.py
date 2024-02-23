@@ -71,23 +71,36 @@ class imageCal_loader(base_loader):
         flip=x[random.randint(0, 1)]
         strand1 = np.load(os.path.join(file_name,os.path.basename(file_name)+".npy"))
         strand1  = strand1.reshape((-1,3))
-        
+        center = np.array([0.00703544,-1.58652416,-0.01121912])
         strand = strand1.copy()
-        strand = strand+np.array([0.00703544,-1.58652416,-0.01121912])
+        
+        strand = strand+center
         x=random.randint(-30,30)#从上往下看人体顺时针旋转
-        y=random.randint(-30,30)#人体向下旋转
-        ang = [y,x]
+        y=random.randint(-20,30)#人体向下旋转
+        z=random.randint(-30,30)
+        mov = np.array([random.randint(-int(64*0.00567194)*100/2,int(64*0.00567194)*100/2)/100,\
+                        random.randint(-int(64*0.00567194)*100/2,int(64*0.00567194)*100/2)/100,\
+                        random.randint(-int(48*0.00567194)*100/2,int(48*0.00567194)*100/2)/100  ])
+        # for test bodygreen
+        # mov=np.array([0,0,0])
+        # y=random.randint(-30,30)
+        # z=0
+        ang = [y,x,z]
         rand = True
         if not rand:
             ang = [30,15]
             flip=False
+        ori_head_vertices = self.orig_vertices
         if flip:
             strand[:,0]=-strand[:,0]
-        
-        
-        tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(0)],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
-        strand = trans.matrix_transform(strand, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
-        self.mesh.vertices = trans.matrix_transform(self.orig_vertices, tform.params)+np.array([-0.00703544,1.58652416,0.01121912])
+            ori_head_vertices[:,0] = -self.orig_vertices[:,0]
+        #旋转
+        tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(ang[2])],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
+        strand = trans.matrix_transform(strand, tform.params)-center
+        self.mesh.vertices = trans.matrix_transform(ori_head_vertices, tform.params)-center
+        #平移
+        strand+=mov
+        self.mesh.vertices+=mov 
         
         strand1 = strand.reshape((-1,100,3))
         strand_before = strand1[:,:-1,:]
@@ -107,11 +120,12 @@ class imageCal_loader(base_loader):
         ori_list = ori_list[:,[2,1,0]]
         segments = (np.ones(int(len(strand)/100))*100).astype("int")
         ori_list = ori_list.reshape((-1,100,3))
-        matrix = []
-        _,depth,img2 = render_strand(strand,segments,self.mesh,orientation=ori_list,intensity=3,mask=True,matrix=matrix)#depth:0-1 normalize
-        x1=trans.SimilarityTransform(translation=[0.00703544,-1.58652416,-0.01121912],dimensionality=3).params
-        x2=trans.SimilarityTransform(translation=[-0.00703544,1.58652416,0.01121912],dimensionality=3).params
-        calibration = matrix[0]@x2@tform.params@x1 #从相机空间到裁剪空间的矩阵
+        matrix = []#相机内参
+        _,depth,img2 = render_strand(strand,segments,self.mesh,inference=False,orientation=ori_list,intensity=3,mask=True,matrix=matrix)#depth:0-1 normalize
+        x1=trans.SimilarityTransform(translation=center,dimensionality=3).params
+        x2=trans.SimilarityTransform(translation=-center,dimensionality=3).params
+        x3=trans.SimilarityTransform(translation=mov,dimensionality=3).params
+        calibration = matrix[0]@x3@x2@tform.params@x1 #从相机空间到裁剪空间的矩阵，x3随机移动；x2@tform.params@x1随机旋转
         
         oriImg1 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
         mask_area = np.where(oriImg1!=0)
@@ -119,7 +133,7 @@ class imageCal_loader(base_loader):
         mask[mask_area]=255
         image = np.copy(img2)
         image = get_conditional_input_data1(image, mask, False, True)
-        cv2.imwrite(f"{file_name.split('/')[-1]}.png",(255*image).astype('uint8'))
+        # cv2.imwrite(f"{file_name.split('/')[-1]}.png",(255*image).astype('uint8'))
         
         if not self.opt.no_use_bust: 
             # 图片中加上标准人体深度图 引入位姿信息
@@ -133,7 +147,8 @@ class imageCal_loader(base_loader):
         image1=image1.permute(2,0,1)
         Ori2D = image1.clone()
         data_list['image']=image1
-        save_image(torch.cat([image1.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], 'test.png')
+        save_image(torch.cat([image1.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], f'test.png')
+        # save_image(torch.cat([image1.unsqueeze(0), torch.zeros(1, 1, 256, 256)], dim=1)[:, :3, ...], f'{os.path.basename(file_name)}.png')
         depth=cv2.resize(depth,(self.opt.image_size,self.opt.image_size))
         depth=depth[:,:,None]
         if self.opt.use_HD or self.opt.input_nc==3:

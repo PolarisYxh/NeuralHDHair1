@@ -422,7 +422,7 @@ def get_conditional_input_data1(ori, maskImg, flip=False, random_noise=False, im
 
     masData = np.ascontiguousarray(maskImg) / 255.0
     # masData = get_mask(d, False, image_size)
-    W = 100
+    W = image_size
     oriData = oriData * 2. - 1.
     if flip:
         # masData = get_mask(d, False, image_size)
@@ -457,7 +457,9 @@ def get_conditional_input_data1(ori, maskImg, flip=False, random_noise=False, im
                     num_noises -= 1
 
             if num_noises < 5:
-                oriData += np.expand_dims(noise, -1)
+                noise = np.expand_dims(noise, -1)
+                noise = np.repeat(noise, repeats=2, axis=2)
+                oriData += noise
                 oriData /= np.sqrt(np.sum(oriData ** 2, axis=-1, keepdims=True)) + 1e-6
         else:
             max_kernel_size = 20

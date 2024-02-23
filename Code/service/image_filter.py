@@ -229,7 +229,7 @@ class filter_crop:
         self.revert_rot = np.linalg.inv(rot_matrix)
         self.body.vertices = np.dot(vertices,rot_matrix)+center
         m=[]
-        _,bust,img2 = render_strand([[]],[],self.body,orientation=[],intensity=3,matrix=m,mask=True)
+        _,bust,img2 = render_strand([[]],[],self.body,inference=True,orientation=[],intensity=3,matrix=m,mask=True)
         # calculate cam intrinsic and cam extrinsic
         self.cam_intri = m[1]#从相机空间到裁剪空间
         x1=trans.SimilarityTransform(translation=-center,dimensionality=3).params
@@ -239,8 +239,8 @@ class filter_crop:
         four_by_four[:-1, -1] = 0  
         four_by_four[-1, :-1] = 0  
         four_by_four[-1, -1] = 1  
-        self.cam_extri = m[2]@x2@np.linalg.inv(four_by_four)@x1 #从世界坐标到相机空间
-        self.cam_pose = x2@four_by_four@x1@np.linalg.inv(m[0])
+        self.cam_extri = m[2]@x2@np.linalg.inv(four_by_four)@x1 #从世界坐标到相机空间的变换矩阵
+        self.cam_pose = x2@four_by_four@x1@np.linalg.inv(m[2])#相机的世界坐标位置,m[2] 存疑
         # cv2.imshow("1",bust)
         # cv2.waitKey() 
         self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])
