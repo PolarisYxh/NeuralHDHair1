@@ -8,3 +8,6 @@ docker run --gpus all --name strand2d-server -d  -p 50084:50084 -w /app -v "$(pw
 
 export PYTHONPATH=~/NeuralHDHair/Code:~/NeuralHDHair:$PYTHONPATH
 python Code/service/service.py
+
+## 测试step net模型
+修改test文件夹下 test_stepnet.py的模型名称并运行

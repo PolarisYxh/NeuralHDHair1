@@ -40,7 +40,7 @@ class strand_inference:
         else:
             use_depth=False
         self.use_depth = use_depth
-        self.HairFilterLocal = HairFilterLocal 
+        self.HairFilterLocal = HairFilterLocal
         if  self.HairFilterLocal:
             self.img_filter = filter_crop(os.path.dirname(__file__),\
                                         os.path.join(os.path.dirname(__file__),"../data/test"),\
@@ -249,45 +249,14 @@ class strand_inference:
             reset()
         # set_camera()
         logging.info("enter strand2d")
+        
         if  self.HairFilterLocal:
             ori2D,bust,color,segrgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
         else:
             imgB64 = cvmat2base64(image)
             ori2D,bust,color,segrgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.request_HairFilter(name,'img',imgB64)
         logging.info("leave strand2d,enter strand3d")
-        debug=True
-        if debug:
-            # cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
-            # cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-            # cv2.imwrite(f"{self.opt.test_file}_rgb.png",segrgb_image)
-            # cv2.imwrite(f"{self.opt.test_file}_color.png",color)
-            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
-            # np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
-            # np.save(f"{self.opt.test_file}_cam_extri.npy",cam_extri)
-            has_ori2d=True#用gt ori2d测试
-            if has_ori2d:
-                strand_pred = cv2.imread("/data/HairStrand/HiSa_HiDa/strand_map/XH002.png")
-                strand_pred=cv2.resize(strand_pred,(512,512))
-                # 方向图网络需要输入的方向图
-                strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
-                strand2d[:,:,1:3]=strand_pred[:,:,[1,0]]#strand_pred:0通道
-                strand2d[:,:,1]=255-strand2d[:,:,1]
-                strand2d[:,:,2]=255-strand2d[:,:,2]
-                mask1 = cv2.imread(f"/data/HairStrand/HiSa_HiDa/seg/XH002.png")
-                mask1=cv2.resize(mask1,(512,512))
-                mask1 = cv2.cvtColor(mask1,cv2.COLOR_RGB2GRAY)
-                strand2d[mask1<127]=[0,0,0]
-                ori2D=strand2d
-                cv2.imwrite("testx.png",ori2D)
-                bust=(cv2.imread(f"{self.opt.test_file}_bust.png")/255.)[:,:,0]
-                # segrgb_image=cv2.imread(f"{self.opt.test_file}_rgb.png")
-                segrgb_image =cv2.imread("/data/HairStrand/HiSa_HiDa/img/XH002.png")
-                segrgb_image=cv2.resize(segrgb_image,(512,512))
-                segrgb_image[mask1==0] =[0,0,0]
-                color=cv2.imread(f"{self.opt.test_file}_color.png")[:,0,0]
-                revert_rot=np.load(f"{self.opt.test_file}_revert_rot.npy")
-                cam_intri=np.load(f"{self.opt.test_file}_cam_intri.npy")
-                cam_extri=np.load(f"{self.opt.test_file}_cam_extri.npy")
+        
         depth_norm = None
         if self.opt.input_nc==3 or self.use_depth:
             if not self.use_strand:
@@ -311,6 +280,42 @@ class strand_inference:
                 rgbB64 = cvmat2base64(segrgb_image)
                 maskB64 = cvmat2base64(mask)
                 depth_norm = self.img_filter.request_depth(name,'depth',rgbB64,maskB64)#dtype('float64')
+        debug=True
+        if debug:
+            # cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
+            # cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            # cv2.imwrite(f"{self.opt.test_file}_rgb.png",segrgb_image)
+            # cv2.imwrite(f"{self.opt.test_file}_color.png",color)
+            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            # np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
+            # np.save(f"{self.opt.test_file}_depth_norm.npy",depth_norm)
+            has_ori2d=False#用gt ori2d测试
+            if has_ori2d:
+                strand_pred = cv2.imread("/data/HairStrand/HiSa_HiDa/strand_map/XH002.png")
+                strand_pred=cv2.resize(strand_pred,(512,512))
+                # 方向图网络需要输入的方向图
+                strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
+                strand2d[:,:,1:3]=strand_pred[:,:,[1,0]]#strand_pred:0通道
+                strand2d[:,:,1]=255-strand2d[:,:,1]
+                strand2d[:,:,2]=255-strand2d[:,:,2]
+                mask1 = cv2.imread(f"/data/HairStrand/HiSa_HiDa/seg/XH002.png")
+                mask1=cv2.resize(mask1,(512,512))
+                mask1 = cv2.cvtColor(mask1,cv2.COLOR_RGB2GRAY)
+                strand2d[mask1<127]=[0,0,0]
+                ori2D=strand2d
+                cv2.imwrite("testx.png",ori2D)
+               
+                bust=(cv2.imread(f"{self.opt.test_file}_bust.png")/255.)[:,:,0]
+                # segrgb_image=cv2.imread(f"{self.opt.test_file}_rgb.png")
+                segrgb_image =cv2.imread("/data/HairStrand/HiSa_HiDa/img/XH002.png")
+                segrgb_image=cv2.resize(segrgb_image,(512,512))
+                segrgb_image[mask1==0] =[0,0,0]
+                color=cv2.imread(f"{self.opt.test_file}_color.png")[:,0,0]
+                revert_rot=np.load(f"{self.opt.test_file}_revert_rot.npy")
+                cam_intri=np.load(f"{self.opt.test_file}_cam_intri.npy")
+                cam_extri=np.load(f"{self.opt.test_file}_cam_extri.npy")
+                depth_norm=np.load(f"{self.opt.test_file}_depth_norm.npy")
         if not self.use_modeling:
             if self.opt.input_nc==3:
                 orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=None,norm_depth=depth_norm,use_bust=False,name=self.opt.test_file)

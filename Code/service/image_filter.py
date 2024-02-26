@@ -55,8 +55,8 @@ class filter_crop:
         self.use_strand = use_strand#使用hairstep标准流程，用sam分割及hairstep strand生成方向图
         if use_strand:
             self.strandmodel = strandModel().cuda()
-            # self.strandmodel = torch.nn.DataParallel(self.strandmodel) #第一次新增数据后267000；第二次新增：205002；只用短发训练：30000
-            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-205002.pth")))
+            # self.strandmodel = torch.nn.DataParallel(self.strandmodel) #第一次新增数据后267000；第二次新增：205002,1150002；只用短发训练：30000
+            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-1150002.pth")))
             self.strandmodel.eval()
         self.use_depth = use_depth
         if use_depth:
@@ -231,7 +231,7 @@ class filter_crop:
         m=[]
         _,bust,img2 = render_strand([[]],[],self.body,inference=True,orientation=[],intensity=3,matrix=m,mask=True)
         # calculate cam intrinsic and cam extrinsic
-        self.cam_intri = m[1]#从相机空间到裁剪空间
+        self.cam_intri = m[1]#使用奇胜人脸内参的相机，从相机空间到裁剪空间
         x1=trans.SimilarityTransform(translation=-center,dimensionality=3).params
         x2=trans.SimilarityTransform(translation=center,dimensionality=3).params
         four_by_four = np.eye(4)  
@@ -239,17 +239,17 @@ class filter_crop:
         four_by_four[:-1, -1] = 0  
         four_by_four[-1, :-1] = 0  
         four_by_four[-1, -1] = 1  
-        self.cam_extri = m[2]@x2@np.linalg.inv(four_by_four)@x1 #从世界坐标到相机空间的变换矩阵
-        self.cam_pose = x2@four_by_four@x1@np.linalg.inv(m[2])#相机的世界坐标位置,m[2] 存疑
+        self.cam_extri = m[2]@x2@np.linalg.inv(four_by_four)@x1 #使用奇胜人脸内参的相机，从世界坐标到相机空间的变换矩阵
+        self.cam_pose = x2@four_by_four@x1@np.linalg.inv(m[2])#使用奇胜人脸内参的相机，相机的世界坐标系位置,m[2] 存疑
         # cv2.imshow("1",bust)
         # cv2.waitKey() 
-        self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])
+        self.mean_lms = apply_matrix(self.body.vertices[self.conf["body_lms"],:], m[0])#得到自己正交相机标准脸关键点的图像投影
         shoulder_lms = np.array(self.conf["shoulder_lms"])
         self.shoulder_lms = apply_matrix(self.body.vertices[shoulder_lms,:], m[0])
         tp = 'affine'
         tform = trans.estimate_transform(tp, lms_3d[:17,:2], self.mean_lms[:17,:2])
         M = tform.params[0:2]
-        if self.use_step:
+        if self.use_step:#先粗糙分割头发
             framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
             step = self.hair_step.inference(framesForHair[0])
             step = cv2.resize(step,(640,640))
@@ -343,7 +343,8 @@ class filter_crop:
         imgB64 = cvmat2base64(framesForHair[0])#framesForHair[0] 640,640
         aligned = cv2.warpAffine(framesForHair[0],
                                 M, (640, 640),
-                                borderValue=0.0)
+                                borderValue=0.0)#头发转到标准位置
+        # cv2.imwrite(image_name.split('.')[0]+"_3.png",aligned)
         hair_point1 = np.array(hair_point1)
         hair_point2 = np.append(hair_point1,lms_3d[[30,33],:2],axis=0)
         labels = np.zeros(len(hair_point1)+2).astype('int')
@@ -370,7 +371,7 @@ class filter_crop:
                 cv2.circle(x, tuple(point), 1, (0, 255, 0), 2)
         for point in hair_point1:
             cv2.circle(x, tuple(point), 1, (255, 0, 0), 2)
-        cv2.imwrite(image_name.split('.')[0]+"_1.png",x)
+        # cv2.imwrite(image_name.split('.')[0]+"_2.png",parsing)
         aligned_parsing = cv2.warpAffine(parsing,
                                 M, (640, 640),
                                 borderValue=0.0)

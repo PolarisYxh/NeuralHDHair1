@@ -11,9 +11,9 @@ if __name__=="__main__":
     gpu_str=','.join(gpu_str)
     os.environ['CUDA_VISIBLE_DEVICES'] =gpu_str
     strandmodel = strandModel().cuda()
-    strandmodel.load_state_dict(torch.load(os.path.join(os.path.join(os.path.dirname(__file__),"../../"),"../checkpoints/img2strand-205002.pth")))#第一次新增数据后267000，第二次：205002
+    strandmodel.load_state_dict(torch.load(os.path.join(os.path.join(os.path.dirname(__file__),"../../"),"../checkpoints/img2strand-1150002.pth")))#第一次新增数据后267000，第二次：205002,1150002
     strandmodel.eval()
-    # file_names=["1a1a4e120b9351492bad5c2f9cd10101.png"]
+    file_names=["a563ff2110d970bdf3b48f6ccdc80654.png","0e6cf118f3e34957ffd6577c83e496e1.png","XH004_2.png","XH002.png"]
     for name in file_names:
         img=cv2.imread(os.path.join("/data/HairStrand/HiSa_HiDa/","img",name))
         # img = cv2.resize(img,(512,512))
@@ -36,4 +36,4 @@ if __name__=="__main__":
         seg =seg[:,:,0]
         strand2d[seg==0]=[0,0,0]
         strand2d=(strand2d*255).astype('uint8')
-        cv2.imwrite(os.path.join("data/test/strand_eval",name.split('.')[0]+"_ori2.png"),strand2d)
+        cv2.imwrite(os.path.join("data/test/strand_eval",name.split('.')[0]+"_ori3.png"),strand2d)

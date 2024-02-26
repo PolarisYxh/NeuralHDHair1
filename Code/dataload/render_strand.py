@@ -10,7 +10,7 @@ import platform
 plat = platform.system().lower()
 if plat != 'windows':
     os.environ['PYOPENGL_PLATFORM'] = 'egl'
-def render_strand(strands,segments,inference=True,mesh=None,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
+def render_strand(strands,segments,mesh=None,inference=True,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
     """_summary_
 
     Args:
@@ -122,8 +122,8 @@ def render_strand(strands,segments,inference=True,mesh=None,width=256,vertex_col
             colors.append(color)
             # cv2.imshow("1",color)
             # cv2.waitKey()
+    matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
     if not inference:
-        matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
         matrix.append(pc.get_projection_matrix())
         # print(pc.get_projection_matrix())
         matrix.append(np.linalg.inv(scene.main_camera_node.matrix))
@@ -141,7 +141,7 @@ def render_strand(strands,segments,inference=True,mesh=None,width=256,vertex_col
         pc = pyrender.PerspectiveCamera(yfov=np.deg2rad(15),znear=near,zfar=cam+far,aspectRatio=aspectRatio)
         #相机标准位置还是使用我这边计算得到的，人脸位姿之后可以使用奇胜优化得到的位姿数据
         camera_pose = transform.SimilarityTransform(translation=(-0.00703244, 1.58652416, cam), rotation=(np.deg2rad(0),0,0), dimensionality=3).params
-        matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(scene.main_camera_node.matrix)))
+        # matrix.append(np.dot(pc.get_projection_matrix(), np.linalg.inv(camera_pose)))
         matrix.append(pc.get_projection_matrix())
         matrix.append(np.linalg.inv(camera_pose))
     return depth, depth1,color
