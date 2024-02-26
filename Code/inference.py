@@ -282,24 +282,25 @@ class strand_inference:
                 depth_norm = self.img_filter.request_depth(name,'depth',rgbB64,maskB64)#dtype('float64')
         debug=True
         if debug:
-            # cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
-            # cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
-            # cv2.imwrite(f"{self.opt.test_file}_rgb.png",segrgb_image)
-            # cv2.imwrite(f"{self.opt.test_file}_color.png",color)
-            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
-            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
-            # np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
-            # np.save(f"{self.opt.test_file}_depth_norm.npy",depth_norm)
+            cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
+            cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
+            cv2.imwrite(f"{self.opt.test_file}_rgb.png",segrgb_image)
+            cv2.imwrite(f"{self.opt.test_file}_color.png",color)
+            np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
+            np.save(f"{self.opt.test_file}_depth_norm.npy",depth_norm)
             has_ori2d=False#用gt ori2d测试
             if has_ori2d:
-                strand_pred = cv2.imread("/data/HairStrand/HiSa_HiDa/strand_map/XH002.png")
+                dir_name = "data/test/ori2d"
+                strand_pred = cv2.imread(os.path.join(dir_name,"strand_map/XH002.png"))
                 strand_pred=cv2.resize(strand_pred,(512,512))
                 # 方向图网络需要输入的方向图
                 strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
                 strand2d[:,:,1:3]=strand_pred[:,:,[1,0]]#strand_pred:0通道
                 strand2d[:,:,1]=255-strand2d[:,:,1]
                 strand2d[:,:,2]=255-strand2d[:,:,2]
-                mask1 = cv2.imread(f"/data/HairStrand/HiSa_HiDa/seg/XH002.png")
+                mask1 = cv2.imread(os.path.join(dir_name,"seg/XH002.png"))
                 mask1=cv2.resize(mask1,(512,512))
                 mask1 = cv2.cvtColor(mask1,cv2.COLOR_RGB2GRAY)
                 strand2d[mask1<127]=[0,0,0]
@@ -308,7 +309,7 @@ class strand_inference:
                
                 bust=(cv2.imread(f"{self.opt.test_file}_bust.png")/255.)[:,:,0]
                 # segrgb_image=cv2.imread(f"{self.opt.test_file}_rgb.png")
-                segrgb_image =cv2.imread("/data/HairStrand/HiSa_HiDa/img/XH002.png")
+                segrgb_image =cv2.imread(os.path.join(dir_name,"img/XH002.png"))
                 segrgb_image=cv2.resize(segrgb_image,(512,512))
                 segrgb_image[mask1==0] =[0,0,0]
                 color=cv2.imread(f"{self.opt.test_file}_color.png")[:,0,0]

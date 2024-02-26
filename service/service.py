@@ -2,6 +2,11 @@ from flask import Flask
 from flask import request
 import json
 import os
+import platform
+plat = platform.system().lower()
+if plat != 'windows':
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
+    # os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
 import logging
 import traceback
 import sys

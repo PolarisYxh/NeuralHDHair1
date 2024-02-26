@@ -122,5 +122,5 @@ void main()
     base_color *= color_multiplier;
 #endif
 
-    frag_color = clamp(color_multiplier, 0.0, 1.0);
+    frag_color = clamp(base_color, 0.0, 1.0);
 }

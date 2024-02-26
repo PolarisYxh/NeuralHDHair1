@@ -150,7 +150,10 @@ class Renderer(object):
         # Update camera settings for retrieving depth buffers
         self._latest_znear = scene.main_camera_node.camera.znear
         self._latest_zfar = scene.main_camera_node.camera.zfar
-
+        if not hasattr(scene.main_camera_node.camera,'yfov'):
+            self.ortho=True
+        else:
+            self.ortho=False
         return retval
 
     def render_text(self, text, x, y, font_name='OpenSans-Regular',
@@ -265,15 +268,23 @@ class Renderer(object):
         depth_im = np.flip(depth_im, axis=0)
 
         inf_inds = (depth_im == 1.0)
-        depth_im = 2.0 * depth_im - 1.0
+        # depth_im = 2.0 * depth_im - 1.0
         z_near, z_far = self._latest_znear, self._latest_zfar
-        noninf = np.logical_not(inf_inds)
-        if z_far is None:
-            depth_im[noninf] = 2 * z_near / (1.0 - depth_im[noninf])
-        else:
-            depth_im[noninf] = ((2.0 * z_near * z_far) /
-                                (z_far + z_near - depth_im[noninf] *
-                                (z_far - z_near)))
+        
+        
+        if self.ortho:#正交投影
+            depth_im = depth_im * (z_far-z_near) + z_near#获得真实的深度坐标
+            # depth_im = depth_im/z_far#获得真实的深度比例
+        else:#透视投影
+            noninf = np.logical_not(inf_inds)#不是无限远的位置
+            if z_far is None:#透视投影计算深度缓冲区到 else里面z_far无穷大时，退化为if里面的公式
+                depth_im[noninf] = 2 * z_near / (1.0 - depth_im[noninf])
+            else:#透视投影 z_far不是无穷大
+                depth_im[noninf] = ((2.0 * z_near * z_far) /
+                                    (z_far + z_near - depth_im[noninf] *
+                                    (z_far - z_near)))
+                
+                
         depth_im[inf_inds] = 0.0
 
         # Resize for macos if needed

@@ -2,14 +2,17 @@ import numpy as np
 import dataload.pyrender as pyrender
 from skimage import transform
 import cv2
+import platform
 import os
+plat = platform.system().lower()
+if plat != 'windows' and "PYOPENGL_PLATFORM" not in os.environ:
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
+    # os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
 import sys
 import random
 sys.path.append(os.path.dirname(__file__))
-import platform
-plat = platform.system().lower()
-if plat != 'windows':
-    os.environ['PYOPENGL_PLATFORM'] = 'egl'
+
+
 def render_strand(strands,segments,mesh=None,inference=True,width=256,vertex_colors=np.array([0, 0, 0, 255]),orientation=None,mask=False,intensity=3.0, strand_color = None, offscreen = True,cam_pos=[],matrix=[]):
     """_summary_
 
