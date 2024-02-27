@@ -60,10 +60,11 @@ class Handler(object):
         try:
             if mode=="img":
                 ## TODO:
-                ori2D,bust,color,rgb_image,revert_rot = self.process(json_data)
+                ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.process(json_data)
                 # rst=json.dumps(rst,cls=MyEncoder)
                 response_data = {'reqCode': reqCode, 'ori2D': ori2D, 'bust':bust,'color':color, \
-                                 'ori_img':rgb_image,'revert_rot':revert_rot,'error':0, 'errorInfo': ''}
+                                 'ori_img':rgb_image,'revert_rot':revert_rot,'cam_extri':cam_extri,\
+                                 'cam_intri':cam_intri,'error':0, 'errorInfo': ''}
                 logging.info(f'Handler successfully, reqCode: {reqCode}.')
                 os.system(f'echo \"Handler successfully\" >> cache/{reqCode}_service_log.log')
             elif mode=="depth":
@@ -88,8 +89,8 @@ class Handler(object):
         # cv2.imshow("1",img)
         # cv2.waitKey()img,name,use_gt=False
         # outimg = self.app.inference(img)
-        ori2D,bust,color,rgb_image,revert_rot = self.app.pyfilter2neuralhd(img,"",reqCode,use_gt=False)
-        return ori2D.tolist(),bust.tolist(),color.tolist(),rgb_image.tolist(),revert_rot.tolist()
+        ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.app.pyfilter2neuralhd(img,"",reqCode,use_gt=False)
+        return ori2D.tolist(),bust.tolist(),color.tolist(),rgb_image.tolist(),revert_rot.tolist(),cam_intri.tolist(),cam_extri.tolist()
     def process_depth(self, json_data):
         reqCode = json_data['reqCode']
         img = base642cvmat(json_data['rgbFile'])

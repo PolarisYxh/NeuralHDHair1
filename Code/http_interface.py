@@ -38,9 +38,11 @@ class HairFilterInterface:
             color = result['color']
             rgb_image = result['ori_img']
             revert_rot = result['revert_rot']
+            cam_intri = result['cam_intri']
+            cam_extri = result['cam_extri']
             os.makedirs(f"{self.rfolder}/cache",exist_ok=True)
             # parsing = base642cvmat(parsing)
-            return np.array(ori2D),np.array(bust),np.array(color),np.array(rgb_image).astype('uint8'),np.array(revert_rot)
+            return np.array(ori2D),np.array(bust),np.array(color),np.array(rgb_image).astype('uint8'),np.array(revert_rot),np.array(cam_intri),np.array(cam_extri)
         else:
             print(f"reqCode:{result['reqCode']}\nerror:{result['error']}\nerrorInfo:{result['errorInfo']}")
             return None,None,None

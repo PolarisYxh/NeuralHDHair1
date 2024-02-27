@@ -60,12 +60,12 @@ class Handler(object):
         self.app = strand_inference(os.path.join(os.path.dirname(__file__),"../"),use_modeling=load_dict['use_modeling'],\
                                     use_hd=load_dict['use_hd'],use_step=load_dict['use_step'],\
                                     use_ori_addinfo=load_dict['use_ori_addinfo'], use_strand=load_dict['use_strand'],\
-                                    Bidirectional_growth=True,gpu_ids=load_dict['gpus'], HairFilterLocal=True)
+                                    Bidirectional_growth=True,gpu_ids=load_dict['gpus'], HairFilterLocal=False)
         self.cache_path = os.path.join(rFolder,'cache')
         if not load_dict['use_modeling']:#对齐到Unity渲染工具
-            self.m = transform.SimilarityTransform(scale=[8.5,7.76,7.9],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
+            self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[-0.05,-13.,-0.31],dimensionality=3)#translation:+z:前；y:上下，x:左右
         else:
-            self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[0,-13.,-0.31],dimensionality=3)
+            self.m = transform.SimilarityTransform(scale=[8.5,7.76,8],translation=[0,-13.1,-0.31],dimensionality=3)
         self.is_running = True
         self.request_queue = queue.Queue()
         self.worker_thread = Thread(target=self.process_queue)

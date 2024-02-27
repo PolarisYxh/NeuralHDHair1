@@ -90,7 +90,7 @@ class strand_inference:
             # self.opt.growInv=False
             # self.growing_solver = GrowingNetSolver()
             # self.growing_solver.initialize(self.opt)
-            self.use_cal=False
+            self.use_cal=True
             if self.use_cal:
                 self.opt.model_name=="HairModelingHDCal"
                 self.opt.save_root="checkpoints/HairModelingHDCal"

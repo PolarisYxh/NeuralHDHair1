@@ -56,7 +56,7 @@ class filter_crop:
         if use_strand:
             self.strandmodel = strandModel().cuda()
             # self.strandmodel = torch.nn.DataParallel(self.strandmodel) #第一次新增数据后267000；第二次新增：205002,1150002；只用短发训练：30000
-            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-1150002.pth")))
+            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-205002.pth")))
             self.strandmodel.eval()
         self.use_depth = use_depth
         if use_depth:
