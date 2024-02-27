@@ -88,7 +88,7 @@ class OptimizableTexturedStrands(nn.Module):
         usc_scale = torch.tensor([[0.2579, 0.4082, 0.2580]]).cuda()
         head_scale = head_mesh.verts_packed().max(0)[0] - head_mesh.verts_packed().min(0)[0]
         self.scale_decoder = (usc_scale / head_scale).mean()
-        self.scale_decoder = 1/83
+        # self.scale_decoder = 1/83
         # scalp_verts = head_mesh.verts_packed()[None, scalp_vert_idx]
         # scalp_face_verts = face_vertices(scalp_verts, scalp_faces)[0]
         
@@ -356,7 +356,7 @@ class OptimizableTexturedStrands(nn.Module):
         else:
             z_app = None
         
-        strands_list = []
+        # strands_list = []
        
         l, r = 0, num_strands
         z_geom_batch = z_geom[l:r]
@@ -373,8 +373,10 @@ class OptimizableTexturedStrands(nn.Module):
         distances = torch.norm(p[:,1:] - p[:,:-1], dim=2)
         length = distances.sum(dim=1)
         sample_num = (length//1).to(torch.int32).detach().cpu().numpy()
-        p = p.detach().numpy().reshape((-1,3))
+        p = p.detach().cpu().numpy().reshape((-1,100,3))
         final_segment = np.array(list(range(0,len(p),100)))
-        final_strand_del_by_ori_same=pyBsplineInterp.GetBsplineInterpDifnum(p,final_segment,sample_num,3)
-        final_strand_del_by_ori_same=final_strand_del_by_ori_same.reshape((-1,sample_num,3))
-        return torch.cat(strands_list, dim=0), z_geom, z_app
+        # from Tools.resample import process_list
+        # points = process_list(p,segments,sample_num)
+        # final_strand_del_by_ori_same=pyBsplineInterp.GetBsplineInterpDifnum(p,final_segment,sample_num,3)
+        # final_strand_del_by_ori_same=final_strand_del_by_ori_same.reshape((-1,sample_num,3))
+        return p, z_geom, z_app

@@ -14,6 +14,7 @@ import trimesh
 from Tools.utils import transform_Inv
 from preprocess_custom_data.extract_visible_surface import ExtractVisibleSurface
 import mcubes
+from Code.Tools.utils import mesh_to_voxel_torch,mesh_to_voxel
 class StrandsTrainer:
     def __init__(self, config, run_model=None, device=None, save_dir=None) -> None:
         
@@ -115,7 +116,6 @@ class StrandsTrainer:
         # 
         # with freeze_gradients(model):#第二步得到的gt，#out:[190000,1],[190000, 256],[190000, 3]为sdf,feat,orient
         #     out = self.run_model(model, self.strands_origins.view(-1, 3))
-        from Code.Tools.utils import mesh_to_voxel_torch,mesh_to_voxel
         # self.strands_origins_voxel:[W,H,D]
         self.strands_origins_voxel = mesh_to_voxel_torch(self.strands_origins.reshape((-1,3)),scale=2)
         self.strands_origins_voxel = self.strands_origins_voxel.to(torch.int64)[0].permute(1,0)
@@ -127,16 +127,7 @@ class StrandsTrainer:
         #occ[None].permute((0, 4, 1, 2, 3)):N, C, H, W, D
         occ_list=self.index_voxel(occ[None].to(torch.float32).permute((0, 4, 1, 2, 3)),self.strands_origins_voxel[None])[0,0]
         ori_list=self.index_voxel(ori[None].to(torch.float32).permute((0, 4, 1, 2, 3)),self.strands_origins_voxel[None])[0,...,0].permute((1,0))
-        # num=1000
-        # for x in range(0,len(self.strands_origins_voxel)//num):#Code/Models/Local_filter.py Line 196
-        #     if x==0:
-        #         occ_list = occ[self.strands_origins_voxel[x*num:x*num+num].T]#[190000, 3]点太多 导致从索引取值显存不够用
-        #         ori_list = ori[self.strands_origins_voxel[x*num:x*num+num]]
-        #     else:
-        #         occ1 = occ[self.strands_origins_voxel[x*num:x*num+num]]#[190000, 3]点太多 导致从索引取值显存不够用
-        #         ori1 = ori[self.strands_origins_voxel[x*num:x*num+num]]
-        #         occ_list = torch.cat((occ_list, occ1), -1)
-        #         ori_list = torch.cat((ori_list, ori1), -1)
+        
         losses['volume'] = torch.sum(1-torch.abs(occ_list))
         # Calculate origin loss
         # sdf = out[..., 0].view(-1, strand_len)

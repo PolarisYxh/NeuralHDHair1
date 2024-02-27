@@ -14,8 +14,8 @@ def inference_on_uscscalp(strandModel_path):
     
     state_dict = torch.load(strandModel_path, map_location=device)
     strands.load_state_dict(state_dict['strands'])
-    strands,_,_=strands.forward_inference_guides(100)
-    trimesh.PointCloud(strands.reshape(-1, 3).detach().cpu()).export('strands_test.ply')
+    strands,_,_=strands.forward_inference_guides(10000)
+    trimesh.PointCloud(strands.reshape(-1, 3)).export('strands_test.ply')
 def inference_on_otherscalp(strandModel_path):
     config['textured_strands']["path_to_mesh"]="/home/algo/yangxinhang/NeuralHDHair/NeuralHaircut/data/meishutoupi1.obj"#美术提供的base模型
     strands = OptimizableTexturedStrands(**config['textured_strands'], diffusion_cfg=config['diffusion_prior'],inference_on_other_scalp=True).to(device)
