@@ -1,3 +1,4 @@
+#unity请求，返回头发给unity显示
 from flask import Flask  
 app = Flask(__name__)  
 from flask import request
@@ -22,7 +23,7 @@ def index():
         json_data=json.loads(data)
         logging.info(f'Receive data successfully.')
         
-        ply_path = "/home/yangxinhang/NeuralHDHair/NeuralHaircut/exps_second_stage/second_stage_person_0/person_0/neural_strands_w_camera_fitted/2024-01-23_20:31:36/00003000_strands_points.ply"
+        ply_path = "/home/yangxinhang/NeuralHDHair/NeuralHaircut/exps_second_stage/second_stage_person_0/person_0/neural_strands_w_camera_fitted/2024-01-23_20:31:36/fullstrands_001050.ply"
         pcl = trimesh.load(ply_path, file_type="ply")
         verts = pcl.vertices.reshape((-1,100,3))
         nums= 100

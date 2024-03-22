@@ -283,6 +283,14 @@ class get_face_info:
         drawLms(self.img,landmark3d_align[:,:2].astype('int'))
         return [yaw,pitch,roll]
     def align_face(self,index):#point fit and plane fit to rotate 3d landmark to front
+        """_summary_
+
+        Args:
+            index (_type_): _description_
+
+        Returns:
+            euler: x 上下（上为正）；y 左右； z 顺逆
+        """        
         try:
             from ..ransac import Plane
         except:

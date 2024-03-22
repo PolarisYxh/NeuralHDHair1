@@ -66,7 +66,7 @@ import numba
 #     closest_index = np.argmin(l)
 #     return closest_index
 @numba.jit(nopython=True) 
-def find_closest_point(direction_vectors, points):
+def find_closest_point(direction_vectors, points, w1=0.9, w2=0.1):
     """_summary_
     循环版本，找最近邻点
     Args:
@@ -89,7 +89,7 @@ def find_closest_point(direction_vectors, points):
         # norm_l3=np.repeat(l1,3,1)
         dirs1=dirs/norm_l3-dir_point[3:]
         l2=np.sqrt(dirs1[:,0]*dirs1[:,0]+dirs1[:,1]*dirs1[:,1]+dirs1[:,2]*dirs1[:,2])#方向向量 loss
-        l = 0.9*l1*50+0.1*l2
+        l = w1*l1+w2*l2
         closest_index = np.argmin(l)
         closest_points.append(closest_index)
 
@@ -123,13 +123,28 @@ class find_root:
         # Compute some SDF values (negative outside);
         # takes a (num_points, 3) array, converts automatically
         
-    def getNewRoot(self,points,points0,segments,connect=False):#目前连接以后更不好看了
+    def getNewRoot(self,points,points0,segments,connect=0):#目前连接以后更不好看了
+        """TODO 在connect=1里面还有错误，返回的不定长的顶点有问题
+
+        Args:
+            points (_type_): n,100,3
+            points0 (_type_): n*100,3
+            segments (_type_): 每根长度
+            connect (int, optional): 0：不连接头皮的最近邻点，1：连接，2：直接移动过去. Defaults to 0.
+
+        Returns:
+            que:采样后定长发丝 [n*100*3]
+            points0:不定长发丝
+            segments1: points0每根起始索引
+            segments: points0每根长度
+            
+        """        
         #参考论文：Modeling Hair from an RGB-D Camera
         que = np.array(points)
         dir = que[:,0]-que[:,1]
         x = np.linalg.norm(dir,axis=1)
-        indices = np.where(x==0)
-        que = np.delete(que, indices[0],axis=0)#重复的点
+        indices1 = np.where(x==0)[0]
+        
         #计算头发丝到头皮距离l1
         sdf_multi_point = self.f(que.reshape((-1,3)))
         l1 = np.array(sdf_multi_point).reshape((-1,100))
@@ -137,11 +152,26 @@ class find_root:
         rootlen = l1[:,0]
         rootlen_mean = np.mean(l1[:,0])
         len_thres = -np.abs(rootlen_mean)*6.18
-        indices=np.where(rootlen<len_thres)
-        que = np.delete(que, indices[0],axis=0)
-        l1 = np.delete(l1, indices[0],axis=0)
-        if connect:
-            #根据头发丝到头皮距离对头发丝进行排序
+        indices2=np.where(rootlen<len_thres)[0]
+        
+        indices=np.append(indices1,indices2)
+        que = np.delete(que, indices,axis=0)#重复的点
+        l1 = np.delete(l1, indices,axis=0)
+        
+        segments1 = np.cumsum(segments)
+        segments1 = np.insert(segments1,0,0)[:-1]
+        indices=sorted(list(set(indices)),reverse=True)
+        
+        for i in indices:
+            if i==len(segments1)-1:
+                points0 = np.delete(points0, np.s_[segments1[i]:len(points0)],axis=0)
+            else:
+                points0 = np.delete(points0, np.s_[segments1[i]:segments1[i+1]],axis=0)
+        segments = np.delete(segments, indices, axis=0) #每根长度
+        segments1 = np.cumsum(segments)
+        segments1 = np.insert(segments1,0,0)[:-1] #每根起始索引
+        if connect==1:
+            #根据头发丝到头皮距离对头发丝进行排序，连接头皮上的最近邻点到发根点
             l2 = np.mean(l1,axis=1)
             sorted_indices = np.argsort(l2)
             # Contains check
@@ -187,22 +217,58 @@ class find_root:
             # kdtree = KDTree(random_surface_points)
             # # 从KD树中找到最近的点
             # dist, index = kdtree.query(query_point)
+            index = np.squeeze(np.array(index))
+            new_root = random_surface_points[index]
+
+            l2=l1[sorted_indices]
+            inside_index = np.where(l2[:,0]>=1e-5) #在头皮里面了
+
+            que = np.insert(que, 0, new_root, axis=1)
+            que[inside_index,0]=que[inside_index,1]
+            root_dict = {value: index for index, value in enumerate(sorted_indices)}
+            for i,idx in enumerate(segments1[::-1]):
+                points0 = np.concatenate((points0[:idx], [new_root[root_dict[len(segments1)-i-1]]], points0[idx:]))
+            segments1=np.array(segments1)+np.array(list(range(0,len(segments1)))) 
+            end = time.time()
+            response_time = end - start
+            logging.info(f"connect root response_time = {round(response_time, 3)}")  
+        elif connect==2:#直接移动到头皮上的点
+            l2 = np.mean(l1,axis=1)
+            sorted_indices = np.argsort(l2)
+            # Contains check
+            # origin_contained = f.contains([0, 0, 0])
+            # Misc: nearest neighbor
+            # origin_nn = f.nn([0, 0, 0])
+            que = que[sorted_indices,:]
+            query_point = que[:,0]
+            dir = que[:,0]-que[:,1]
+            # Misc: uniform surface point sampling
+            random_surface_points = self.f.sample_surface(10000)
+            
+            
+            dir = dir/np.linalg.norm(dir,axis=1)[:, np.newaxis]
+            query_point1=np.concatenate((query_point, dir), axis=1)
+            start = time.time()
+            index=find_closest_point(query_point1,random_surface_points,1,0)#很慢
             end = time.time()
             response_time = end - start
             logging.info(f"connect root response_time = {round(response_time, 3)}")
             index = np.squeeze(np.array(index))
             new_root = random_surface_points[index]
 
-            l1=l1[sorted_indices]
-            inside_index = np.where(l1[:,0]>=1e-5) #在头皮里面了
-
-            que = np.insert(que, 0, new_root, axis=1)
-            end = len(points0)
-            for i,idx in enumerate(segments[::-1]):
-                points0 = np.concatenate((points0[:idx], [new_root[-(i+1)]], points0[idx:]))
-            que[inside_index,0]=que[inside_index,1]
-            segments=np.array(segments)+np.array(list(range(0,len(segments)))
-        return que,points0,segments
+            l2=l1[sorted_indices]
+            inside_index = np.where(l2[:,0]>=1e-5) #在头皮里面了
+            loss = new_root-que[:,0,:]
+            que+=loss[:,None,:]
+            for i,index in enumerate(sorted_indices):
+                idx = segments1[index]
+                los = (new_root[i,:]-points0[idx,:])[None]
+                if index==len(segments1)-1:
+                    points0[segments1[index]:,:]+=los
+                else:
+                    points0[segments1[index]:segments1[index+1],:]+=los
+        
+        return que,points0,segments1,segments
 if __name__=="__main__":
     import numpy as np
     import os

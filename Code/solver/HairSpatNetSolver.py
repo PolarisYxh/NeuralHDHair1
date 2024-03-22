@@ -170,7 +170,7 @@ class HairSpatNetSolver(BaseSolver):
 
                 losses = self.get_latest_losses()
                 visualizer.board_current_errors(losses)
-                if iter_counter.needs_printing():
+                if iter_counter.needs_printing():#记录一个epoch里所有batch loss的平均值{epoch:loss_mean}
 
                     visualizer.print_current_errors(epoch, iter_counter.epoch_iter, losses, iter_counter.time_per_iter)
                 if iter_counter.needs_displaying():#every 20 steps

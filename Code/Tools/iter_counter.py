@@ -43,7 +43,7 @@ class IterationCounter():
         # so we can assume batch size is always opt.batch_size
         self.time_per_iter = (current_time - self.last_iter_time) / self.opt.batch_size
         self.last_iter_time = current_time
-        self.total_steps_so_far += self.opt.batch_size
+        self.total_steps_so_far += self.opt.batch_size#total_steps_so_far:一个数据算一步
         self.epoch_iter += self.opt.batch_size
 
     def record_epoch_end(self):

@@ -51,7 +51,7 @@ class strand_inference:
         self.use_step=use_step
         self.opt=InferenceOptions().initialize(use_modeling=use_modeling)
         self.iter = {}
-        self.delete_far = False
+        self.delete_far = True
         if self.delete_far:
             from Tools.connect_root import find_root
             self.froot = find_root(rFolder)
@@ -65,6 +65,11 @@ class strand_inference:
         self.opt.is_Train = False
         self.use_modeling = use_modeling
         self.use_hd = use_hd
+        
+        from classify.preprocess_ori2d import model2feature
+        config = readjson(os.path.join(os.path.dirname(__file__),'classify/config.json'))
+        algo = config["algo_para"]
+        self.m2f = model2feature(os.path.join(os.path.dirname(__file__),'classify'), [1,15,32,82], algo["pic_match"]["hair_segment"],algo["pic_match"]["hair_segment_size"])
         if use_modeling:
             self.opt.voxel_size = "192,256,256"
             self.opt.model_name="GrowingNet"
@@ -160,6 +165,7 @@ class strand_inference:
             self.spat_solver.initialize(self.opt)
         self.sample_num=100
         self.body = trimesh.load_mesh(os.path.join(rFolder,"female_halfbody_medium_join.obj"))
+        self.data_dir = "/data/HairStrand/NeuralHDHairData"
         # opt.model_name=='HairModeling'
         # self.hd_solver=HairModelingHDSolver()
         # self.hd_solver.initialize(opt)
@@ -242,6 +248,60 @@ class strand_inference:
         np.save("x.npy",points_same)
         # writejson("test1.json",{"points":points.reshape((-1,3)).tolist(),"segments":segments.tolist()})
         return points.reshape((-1,3)),segments,colors
+    def get_parse_score(self,r,c, parse,h,w,img):
+        hairFeature = parse[r * h:r*h+h, c * w:c * w+w]
+        hair_contour = cv2.cvtColor(hairFeature,cv2.COLOR_RGB2GRAY)
+        hairFeature_flip = cv2.flip(hairFeature, 1)
+        hair_contour_flip = cv2.flip(hair_contour, 1)
+        # cv2.imwrite("1.png",hair_contour_flip)
+        img_contour = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)
+        img_contour[img_contour>0]=100
+        Y = np.where(hair_contour>10)
+        img_contour[Y]+=100
+        coincident = np.where(img_contour==200)[0].shape[0]
+        all = np.where(img_contour>0)[0].shape[0]
+        score1 = coincident/all
+        score2 = np.mean(np.square(img - hairFeature))
+        score = 100*score1+score2
+        # score = score1
+        img_contour[Y]-=100
+        # 计算flip后的分数
+        Y = np.where(hair_contour_flip>10)
+        img_contour[Y]+=100
+        coincident = np.where(img_contour==200)[0].shape[0]
+        all = np.where(img_contour>0)[0].shape[0]
+        score1_f = coincident/all
+        score2_f = np.mean(np.square(img - hairFeature_flip))
+        score_flip = 100*score1_f+score2_f
+        # score_flip = score1
+        img_contour[Y]-=100
+        # cv2.imwrite("2.png",img_contour)
+        # cv2.imwrite("3.png",hair_contour)
+        if score_flip>score:
+            return score_flip,True
+        else:
+            return score,False
+    def parse_match(self, img, parse):
+        h=self.m2f.segment_height
+        w=self.m2f.segment_width
+        img = img.astype('uint8')
+        img1 = cv2.resize(img,(h,w))
+        # img = self.get_seg_img(features,h,w)
+        max_score = 0
+        image_cnt = len(self.m2f.hair_names)
+        rows = self.m2f.rows  # try to make it square
+        cols = self.m2f.cols
+        for r in range(0,rows):
+            for c in range(0,cols):
+                if r*cols+c>=image_cnt:
+                    continue
+                name = self.m2f.hair_names[r*cols+c]
+                score,flag=self.get_parse_score(r,c,parse,h,w,img1)
+                if score>max_score:
+                    result = name if flag==False else name+"_flip"
+                    max_score = score
+        return result
+            
     @timeCost
     def inference(self,image,gender="" ,name="",save_path="",use_gt=False,use_unity=False,use_NeuralHaircut=True):
         self.opt.test_file = name.split('.')[0]
@@ -251,12 +311,41 @@ class strand_inference:
         logging.info("enter strand2d")
         
         if  self.HairFilterLocal:
-            ori2D,bust,color,segrgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
+            res = self.img_filter.pyfilter2neuralhd(image,gender,name,use_gt=use_gt)
         else:
             imgB64 = cvmat2base64(image)
-            ori2D,bust,color,segrgb_image,revert_rot,cam_intri,cam_extri = self.img_filter.request_HairFilter(name,'img',imgB64)
+            res = self.img_filter.request_HairFilter(name,'img',imgB64)
+        ori2D,bust,color,segrgb_image,revert_rot,cam_intri,cam_extri,euler=res['ori2D'],res['bust'],res['color'],res['ori_img'],\
+                                                                    res['revert_rot'],res['cam_intri'],res['cam_extri'],res['euler']
         logging.info("leave strand2d,enter strand3d")
-        
+        match = False
+        if match:
+            cv2.imwrite(f"{self.opt.test_file}_ori.png",ori2D)
+            cv2.imwrite(f"{self.opt.test_file}_rgb.png",segrgb_image)
+            flag,parse = self.m2f.get_offline_mask(euler[:3])#x:上下（上为正），y:左右；缩略图库里是
+            if flag:#位姿在范围内
+                match_name = self.parse_match(ori2D, parse)
+            flip=False
+            if "_flip" in match_name:
+                match_name = match_name[:-5]
+                flip=True
+            points = np.load(os.path.join(self.data_dir,match_name,match_name+".npy"))
+            points = points.reshape((-1,3))
+            if flip:
+                points[:,0]=-points[:,0]
+            segments_same = np.array(range(0,len(points)//100))*100
+            colors = np.zeros((len(points.reshape((-1,3))),4))
+            colors[:,:4]=color
+            # colors[:,:3]=255
+            print(f"match {match_name} finish")
+            #吸附到头皮
+            sample_num=self.sample_num
+            connect=2
+            points_same,_,_,_ = self.froot.getNewRoot(points.reshape((-1,self.sample_num,3)),points,segments_same,connect=connect)
+            segments_same = np.array(range(0,len(points_same)))*100
+            if connect==1:
+                sample_num=self.sample_num+1
+            return points_same.reshape((-1,3)),segments_same,colors 
         depth_norm = None
         if self.opt.input_nc==3 or self.use_depth:
             if not self.use_strand:
@@ -286,10 +375,10 @@ class strand_inference:
             cv2.imwrite(f"{self.opt.test_file}_bust.png",(bust*255).astype('uint8'))
             cv2.imwrite(f"{self.opt.test_file}_rgb.png",segrgb_image)
             cv2.imwrite(f"{self.opt.test_file}_color.png",color)
-            np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
-            np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
-            np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
-            np.save(f"{self.opt.test_file}_depth_norm.npy",depth_norm)
+            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            # np.save(f"{self.opt.test_file}_revert_rot.npy",revert_rot)
+            # np.save(f"{self.opt.test_file}_cam_intri.npy",cam_intri)
+            # np.save(f"{self.opt.test_file}_depth_norm.npy",depth_norm)
             has_ori2d=False#用gt ori2d测试
             if has_ori2d:
                 dir_name = "data/test/ori2d"
@@ -317,6 +406,7 @@ class strand_inference:
                 cam_intri=np.load(f"{self.opt.test_file}_cam_intri.npy")
                 cam_extri=np.load(f"{self.opt.test_file}_cam_extri.npy")
                 depth_norm=np.load(f"{self.opt.test_file}_depth_norm.npy")
+        #方向场生成
         if not self.use_modeling:
             if self.opt.input_nc==3:
                 orientation = self.spat_solver.inference(ori2D,use_step=self.use_step,bust=None,norm_depth=depth_norm,use_bust=False,name=self.opt.test_file)
@@ -343,8 +433,8 @@ class strand_inference:
                 cv2.imwrite(f"{self.opt.test_file}.png",rgb)
                 return verts,faces,normals
         # orientation : H,W,D
-        np.save(f"{self.opt.test_file}_orientation.npy", orientation)
-        np.save(f"{self.opt.test_file}_occ.npy", out_occ.cpu().numpy())
+        # np.save(f"{self.opt.test_file}_orientation.npy", orientation)
+        # np.save(f"{self.opt.test_file}_occ.npy", out_occ.cpu().numpy())
         use_NeuralHaircut = False
         if use_NeuralHaircut:
             import torch
@@ -432,15 +522,16 @@ class strand_inference:
         # 采样点
         # points = process_list(points,segments,self.sample_num)
         sample_num=self.sample_num
-        start = segments[0]
-        segments = np.cumsum(segments)
-        segments = np.insert(segments,0,0)[:-1]
-        if self.delete_far:
-            connect=False
-            points_same,points,segments = self.froot.getNewRoot(points_same.reshape((-1,self.sample_num,3)),points,segments,connect=connect)
-            points_same = np.array(points_same).reshape([-1,3])
-            if connect:
-                sample_num=self.sample_num+1
+        segments1 = np.cumsum(segments)
+        segments1 = np.insert(segments1,0,0)[:-1]
+        
+        #吸附到头皮
+        connect=2
+        sample_num=self.sample_num
+        points_same,points,segments1,_ = self.froot.getNewRoot(points_same.reshape((-1,self.sample_num,3)),points,segments,connect=connect)
+
+        if connect==1:#链接到头皮，增加一个头皮发根点
+            sample_num=self.sample_num+1
         # points,segments = readhair(os.path.join(opt.save_dir,dir_name,f"hair_{opt.which_iter}.hair"))
         # m=[]
         # _,bust,img2 = render_strand(points,segments,self.body,width=512,vertex_colors=np.array([127, 127, 127, 255]),strand_color=colors,orientation=[],intensity=3,matrix=m,mask=False)
@@ -498,9 +589,12 @@ class strand_inference:
                 # img = cv2.imread(os.path.join(save_path,f"{name.split('.')[0]}_3.png"))
                 # img = img[:,(img.shape[1]-img.shape[0])//2:-(img.shape[1]-img.shape[0])//2]
                 # cv2.imwrite(os.path.join(save_path,f"{name.split('.')[0]}_3.png"),img)
+        points_same = points_same.reshape((-1,3))
         segments_same = np.array(range(0,len(points_same)//sample_num))*sample_num # 固定100个点
         # writejson("test1.json",{"points":points.reshape((-1,3)).tolist(),"segments":segments.tolist()})
-        return points.reshape((-1,3)),segments,colors
+        
+        return points,segments1,colors
+        # return points_same,segments_same,colors
         
 if __name__=="__main__":
     # test marching_cubes

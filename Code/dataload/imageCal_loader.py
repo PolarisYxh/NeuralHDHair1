@@ -93,7 +93,7 @@ class imageCal_loader(base_loader):
         ori_head_vertices = self.orig_vertices
         if flip:
             strand[:,0]=-strand[:,0]
-            ori_head_vertices[:,0] = -self.orig_vertices[:,0]
+            ori_head_vertices[:,0] = -ori_head_vertices[:,0]
         #旋转
         tform = trans.SimilarityTransform(rotation=[np.deg2rad(ang[0]),np.deg2rad(ang[1]),np.deg2rad(ang[2])],dimensionality=3)#[0,30,0] 从上往下看顺时针旋转v3；[15,0,0] 向下旋转v1
         strand = trans.matrix_transform(strand, tform.params)-center

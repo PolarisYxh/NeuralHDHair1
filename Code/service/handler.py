@@ -45,6 +45,7 @@ class Handler(object):
         device=load_dict["device"]
         if device=="cuda":
             os.environ['CUDA_VISIBLE_DEVICES'] =load_dict['gpus']
+            logging.info(f"use gpu {load_dict['gpus']}")
         # self.app = step_inference(os.path.join(os.path.dirname(os.path.dirname(__file__)),'..'))
         self.app = filter_crop(os.path.join(os.path.dirname(__file__),"../"),\
                                 os.path.join(os.path.dirname(__file__),"../data/test"),\
@@ -60,11 +61,10 @@ class Handler(object):
         try:
             if mode=="img":
                 ## TODO:
-                ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.process(json_data)
-                # rst=json.dumps(rst,cls=MyEncoder)
-                response_data = {'reqCode': reqCode, 'ori2D': ori2D, 'bust':bust,'color':color, \
-                                 'ori_img':rgb_image,'revert_rot':revert_rot,'cam_extri':cam_extri,\
-                                 'cam_intri':cam_intri,'error':0, 'errorInfo': ''}
+                response_data = self.process(json_data)
+                response_data['error']=0
+                response_data['errorInfo']=''
+                response_data['reqCode']=reqCode
                 logging.info(f'Handler successfully, reqCode: {reqCode}.')
                 os.system(f'echo \"Handler successfully\" >> cache/{reqCode}_service_log.log')
             elif mode=="depth":
@@ -89,8 +89,10 @@ class Handler(object):
         # cv2.imshow("1",img)
         # cv2.waitKey()img,name,use_gt=False
         # outimg = self.app.inference(img)
-        ori2D,bust,color,rgb_image,revert_rot,cam_intri,cam_extri = self.app.pyfilter2neuralhd(img,"",reqCode,use_gt=False)
-        return ori2D.tolist(),bust.tolist(),color.tolist(),rgb_image.tolist(),revert_rot.tolist(),cam_intri.tolist(),cam_extri.tolist()
+        res = self.app.pyfilter2neuralhd(img,"",reqCode,use_gt=False)
+        for r in res:
+            res[r]=res[r].tolist()
+        return res
     def process_depth(self, json_data):
         reqCode = json_data['reqCode']
         img = base642cvmat(json_data['rgbFile'])

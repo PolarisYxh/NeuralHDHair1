@@ -30,7 +30,7 @@ class GrowingNet(BaseNetwork):
         self.stride = stride
         self.sample_mode = sample_mode
         self.opt=opt
-
+        self.device = torch.device(f"cuda:{max(0,len(opt.gpu_ids)-1)}" if torch.cuda.is_available() else "cpu") 
 
         assert self.stride % 2 == 0
         assert self.local_size % 2 == 0
@@ -106,7 +106,7 @@ class GrowingNet(BaseNetwork):
         centers=torch.flip(centers,[-1])
 
         centers=centers.type(torch.float)
-        centers=centers.cuda()
+        centers=centers.to(self.device)
         # centers=centers.permute(0,4,1,2,3)
         latents=torch.cat(latents,dim=1) # 27225* [1, 1, 3, 8, 8, 8]
 

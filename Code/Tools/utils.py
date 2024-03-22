@@ -882,7 +882,7 @@ def save_ori_as_mat(ori,opt,save=True,suffix=''):
     ori=ori * np.array([1, -1, -1])
     # ori=(ori+1)/2
 
-    ori=ori.transpose(0,2,3,4,1)
+    ori=ori.transpose(0,2,3,4,1)#output:(1,128,128,3,96)
     _,H,W,C,D=ori.shape[:]
     ori=ori.reshape(H ,W,C*D)
     if save:

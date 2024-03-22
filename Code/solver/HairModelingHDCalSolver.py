@@ -65,15 +65,13 @@ class HairModelingHDCalSolver(BaseSolver):
         else:
             print(" Training from Scratch! ")
             self.net_local.init_weights(opt.init_type, opt.init_variance)
-        if len(opt.gpu_ids) > 0:
-            import torch.nn as nn
-            assert (torch.cuda.is_available())
-            # torch.cuda.set_device(opt.gpu_ids[0])
-            # self.net_global=nn.DataParallel(self.net_global, device_ids=opt.gpu_ids)
-            self.net_global=self.net_global.cuda()
-            # self.net_local=nn.DataParallel(self.net_local, device_ids=opt.gpu_ids)
-            self.net_local=self.net_local.cuda()
-            self.scaler = GradScaler()
+        self.device = torch.device(f"cuda:{max(0,len(opt.gpu_ids)-2)}" if torch.cuda.is_available() else "cpu") 
+        # self.net_global=nn.DataParallel(self.net_global, device_ids=opt.gpu_ids)
+        self.net_global=self.net_global.to(self.device)
+        # self.net_local=nn.DataParallel(self.net_local, device_ids=opt.gpu_ids)
+        self.net_local=self.net_local.to(self.device)
+        self.scaler = GradScaler()
+        print(f"HairModelingHDCal正在使用的GPU编号是: {self.device.index}")
 
 
 
@@ -107,13 +105,13 @@ class HairModelingHDCalSolver(BaseSolver):
         voxel2mesh_matrix = datas['voxel2mesh_matrix'].type(torch.float)
         calibration = calibration@voxel2mesh_matrix
         if self.use_gpu():
-            image = image.cuda()
-            gt_orientation = gt_orientation.cuda()
-            gt_occ=gt_occ.cuda()
-            Ori2D = Ori2D.cuda()
-            add_info=add_info.cuda()
-            depth=depth.cuda()
-            calibration = calibration.cuda()
+            image = image.to(self.device)
+            gt_orientation = gt_orientation.to(self.device)
+            gt_occ=gt_occ.to(self.device)
+            Ori2D = Ori2D.to(self.device)
+            add_info=add_info.to(self.device)
+            depth=depth.to(self.device)
+            calibration = calibration.to(self.device)
         return image,gt_orientation,gt_occ,Ori2D,add_info,depth,calibration
 
 
@@ -221,13 +219,13 @@ class HairModelingHDCalSolver(BaseSolver):
             # save_image(image,"1.png")
             if not self.opt.use_ori_addinfo:
                 norm_depth = torch.from_numpy(norm_depth).unsqueeze(0).unsqueeze(0).type(torch.float)
-                norm_depth = norm_depth.cuda() if self.use_gpu() else norm_depth
+                norm_depth = norm_depth.to(self.device) if self.use_gpu() else norm_depth
             if self.use_gpu():
-                image = image.cuda()
-                Ori2D = Ori2D.cuda()
+                image = image.to(self.device)
+                Ori2D = Ori2D.to(self.device)
                 
             # if image.shape[1]==2:
-            #     save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).cuda()], dim=1)[:, :3, ...],f"{name}.png")
+            #     save_image(torch.cat([image, torch.zeros(1, 1, 256, 256).to(self.device)], dim=1)[:, :3, ...],f"{name}.png")
             # else:
             #     save_image(image,f"{name}.png")
             #image:带bust,strand2D:depth,Ori2D:不带bust的方向图,net_global,resolution,step=100000
@@ -236,9 +234,9 @@ class HairModelingHDCalSolver(BaseSolver):
             out_occ[out_occ>=0.2]=1
             out_occ[out_occ<0.2]=0
             pred_ori=out_ori*out_occ
-            pred_ori=pred_ori.permute(0,2,3,4,1)#[1, 96, 128, 128, 3]
+            pred_ori=pred_ori.permute(0,2,3,4,1)#output:[1, 96, 128, 128, 3]
             pred_ori=pred_ori.cpu().numpy()
-            pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
+            pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')#[1, 128, 128, 3, 96]
             # show(pred_ori,scale=1)
             # pred_ori = save_ori_as_mat(pred_ori,self.opt,save=False,suffix="_"+str(self.opt.which_iter)+'_1')
             # 以下为save_ori_as_mat所做的操作

@@ -33,11 +33,11 @@ class GrowingNetSolver(BaseSolver):
         self.pt_num = opt.pt_per_strand
         self.sd_num = opt.sd_per_batch
         self.initialize_networks(opt)
-        # input = torch.rand((3757, 3, 16, 16, 16)).cuda()
+        # input = torch.rand((3757, 3, 16, 16, 16)).to(self.device)
         # for i in range(10):
         #     _ = self.model_on_one_gpu.OriEncoder(input)
-        # pos = torch.rand((1, 3, 12 * 12, 1)).cuda()
-        # feat = torch.rand((1, 128, 12 * 12, 1)).cuda()
+        # pos = torch.rand((1, 3, 12 * 12, 1)).to(self.device)
+        # feat = torch.rand((1, 128, 12 * 12, 1)).to(self.device)
         # input = torch.cat([feat, pos], dim=1)
         # # input=feat
         # if opt.warm_gpu:
@@ -48,7 +48,6 @@ class GrowingNetSolver(BaseSolver):
         #         _ = self.model_on_one_gpu.Decoder_label(input, pos)
         #         print('test:',time.time()-start)
         #     torch.cuda.synchronize()
-
         if self.opt.isTrain:
             self.optimizer_GN=self.create_optimizers(opt)
             self.criteria=torch.nn.CrossEntropyLoss()
@@ -76,10 +75,10 @@ class GrowingNetSolver(BaseSolver):
 
 
         if len(self.opt.gpu_ids)>0:
-            strands = strands.cuda()
-            gt_orientation = gt_orientation.cuda()
+            strands = strands.to(self.device)
+            gt_orientation = gt_orientation.to(self.device)
             if labels is not None:
-                labels = labels.cuda()
+                labels = labels.to(self.device)
                 labels = labels.permute(0, 3, 1, 2)#1, 1, 800, 72
         gt_orientation = gt_orientation.permute(0, 4, 1, 2, 3)#1,3,96,128,128
         strands = strands.permute(0, 3, 1, 2)#train:1,3,800,72; test:[1, 3, 15000, 1]
@@ -91,18 +90,15 @@ class GrowingNetSolver(BaseSolver):
 
 
     def initialize_networks(self, opt):
+        self.device = torch.device(f"cuda:{max(0,len(opt.gpu_ids)-1)}" if torch.cuda.is_available() else "cpu") 
         self.GrowingNet= GrowingNet(opt,[self.depth, self.height, self.width], self.local_size, self.stride)
         self.GrowingNet.print_network()
-        if len(opt.gpu_ids)>0:
-            assert (torch.cuda.is_available())
-            # torch.cuda.set_device(opt.gpu_ids[-1])
-            print(torch.cuda.current_device())
-            # self.GrowingNet.cuda()
-            # self.model=torch.nn.DataParallel(self.GrowingNet,self.opt.gpu_ids)
-            self.model=self.GrowingNet.cuda()
-            # self.model_on_one_gpu=self.model.module.cuda()
-            # self.GrowingNet=self.GrowingNet.module
-        else:self.model=self.GrowingNet
+        # self.GrowingNet.to(self.device)
+        # self.model=torch.nn.DataParallel(self.GrowingNet,self.opt.gpu_ids)
+        self.model=self.GrowingNet.to(self.device)
+        # self.model_on_one_gpu=self.model.module.to(self.device)
+        # self.GrowingNet=self.GrowingNet.module
+        print(f"HairModelingHDCal正在使用的GPU编号是: {self.device.index}")
         if opt.continue_train or opt.isTrain is False:
             path= os.path.join(opt.current_path,opt.save_root, opt.check_name,'checkpoint')
             if os.path.exists(path):
@@ -238,7 +234,7 @@ class GrowingNetSolver(BaseSolver):
         if use_rule:
             pt_num = self.pt_num
             num_strand = strands.shape[2]
-            hair_strands = torch.zeros(pt_num, 3, num_strand).cuda()
+            hair_strands = torch.zeros(pt_num, 3, num_strand).to(self.device)
             curr_node = strands.squeeze()
             hair_strands[0] = curr_node#gt_orientation按照前后，上下，左右顺序;hair_strands,strands相反按照左右，上下，前后;curr_node_orien按照左右，上下，前后
             for i in range(1,pt_num):
@@ -254,7 +250,7 @@ class GrowingNetSolver(BaseSolver):
             hair_strands[:,2,:] = torch.clip(hair_strands[:,2,:],0,gt_orientation.shape[2]-1)
             out_points_2 = hair_strands.permute(1,2,0).unsqueeze(0)
             
-            hair_strands_inv = torch.zeros(pt_num, 3, num_strand).cuda()
+            hair_strands_inv = torch.zeros(pt_num, 3, num_strand).to(self.device)
             curr_node = strands.squeeze()
             hair_strands_inv[0] = curr_node
             for i in range(1,pt_num):
@@ -404,7 +400,7 @@ class GrowingNetSolver(BaseSolver):
             # random_points=np.append(random_points,random_points1,axis=0)
         else:
             self.pt_num = 72*scale
-            random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root)]
+            random_points=samle_voxel_index[np.random.randint(0,samle_voxel_index.shape[0]-1,size=self.opt.num_root+3000)]
         random_points=random_points[:,::-1]+np.random.random(random_points.shape[:])[None]
         random_points=random_points[...,None,:]
         # random_points=self.roots[:,:][None,:,None,:]

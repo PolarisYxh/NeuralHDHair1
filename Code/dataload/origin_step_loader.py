@@ -70,6 +70,7 @@ class origin_step_loader(base_loader):
 
     def __getitem__(self, index):
         x=self.datas[index]
+        data_list={}
         input=cv2.imread(os.path.join(self.root,"img",x))
         input= cv2.resize(input,(512,512))
         seg =  cv2.imread(os.path.join(self.root,"seg",x))
@@ -88,8 +89,15 @@ class origin_step_loader(base_loader):
         target0=target0[:,:,[1,0]]
         target0=target0.transpose([2,0,1])
         target0=torch.from_numpy(target0) / 255
-        # save_image(target0,"1.png")
-        return {"seg":torch.from_numpy(seg).permute([2,0,1]),"input":input,"target":target0,"gt_feat":self.train_corpus[index]["gt_feat"],"gt_sum":self.train_corpus[index]["gt_sum"]}
+        seg=torch.from_numpy(seg).permute([2,0,1])
+        data_list['input']=input
+        data_list['target']=target0
+        data_list['seg']=seg
+        data_list=self.random_translation(512,data_list)
+        if index==0:
+            save_image(data_list['input'],"i1.png")
+            save_image(data_list['target'],"i2.png")
+        return {"seg":data_list['seg'],"input":data_list['input'],"target":data_list['target'],"gt_feat":self.train_corpus[index]["gt_feat"],"gt_sum":self.train_corpus[index]["gt_sum"]}
 
     def generate_test_data(self):
         path = os.path.join(self.root, self.opt.test_file)
@@ -179,7 +187,20 @@ class origin_step_loader(base_loader):
         # 应用图像变换
         transformed_image = transform(image)
         return gt,data_list
+    
+    def random_translation(self, image_size, data_list):
+        offset_x = random.randint(1, 20) * 2
+        offset_y = random.randint(1, 20) * 2
+        rand_x = random.random()
+        rand_y = random.random()
 
+        for k,v in data_list.items():
+            C,H,W=v.shape[:]
+            mul=H//image_size
+            data_list[k]=self.translation(v,offset_x,offset_y,mul,[C,H,W],rand_x,rand_y)
+
+        
+        return data_list
 
 
 

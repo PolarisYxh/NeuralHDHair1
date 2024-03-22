@@ -36,7 +36,42 @@ def apply_matrix(v, matrix):
     v=v[[0,1,2],:].T
     # v[np.where(np.array(landmarks)==-1)]=[0,0,0]
     return v[:,:3]
-
+def get_matrix_from_2points_pair(source_points_l,destination_points_l):
+    # 计算平移向量
+    translation_vector0 = -np.mean(source_points_l[[0,-1]], axis=0)
+    translation_vector = -np.mean(destination_points_l[[0,-1]] - source_points_l[[0,-1]], axis=0)
+    source_points=source_points_l[[0,-1]]
+    destination_points=destination_points_l[[0,-1]]
+    # 计算缩放因子
+    source_distances = np.linalg.norm(source_points[1] - source_points[0])
+    destination_distances = np.linalg.norm(destination_points[1] - destination_points[0])
+    scale_factor = destination_distances / source_distances
+    # 计算旋转角度（弧度）
+    source_direction = source_points[1] - source_points[0]
+    destination_direction = destination_points[1] - destination_points[0]
+    rotation_angle = np.arctan2(destination_direction[1], destination_direction[0]) - np.arctan2(source_direction[1], source_direction[0])
+    # 构造平移矩阵
+    translation_matrix0 = np.array([[1, 0, translation_vector0[0]],
+                                    [0, 1, translation_vector0[1]],
+                                    [0, 0, 1]])
+    translation_matrix1 = np.array([[1, 0, -translation_vector0[0]],
+                                    [0, 1, -translation_vector0[1]],
+                                    [0, 0, 1]])
+    translation_matrix = np.array([[1, 0, -translation_vector[0]],
+                                    [0, 1, -translation_vector[1]],
+                                    [0, 0, 1]])
+    # 构造缩放矩阵
+    scale_matrix = np.array([[scale_factor, 0, 0],
+                            [0, scale_factor, 0],
+                            [0, 0, 1]])
+    # 构造旋转矩阵
+    rotation_matrix = np.array([[np.cos(rotation_angle), -np.sin(rotation_angle), 0],
+                                [np.sin(rotation_angle), np.cos(rotation_angle), 0],
+                                [0, 0, 1]])
+    # 组合成变换矩阵
+    transformation_matrix = translation_matrix@translation_matrix1@scale_matrix@rotation_matrix@translation_matrix0
+    # transformation_matrix = translation_matrix0@rotation_matrix@scale_matrix@translation_matrix1@translation_matrix
+    return transformation_matrix
 class filter_crop:
     def __init__(self,rFolder,saveFolder="",use_step=True,use_depth=False,use_strand=False) -> None:
         # use_step (bool, optional): 使用自己训练的网络得到初步的身体分割图和头发方向图，否则使用faceparsing分割得到身体和头发分割图，151 docker restart segmentall-server. Defaults to True.
@@ -55,8 +90,9 @@ class filter_crop:
         self.use_strand = use_strand#使用hairstep标准流程，用sam分割及hairstep strand生成方向图
         if use_strand:
             self.strandmodel = strandModel().cuda()
-            # self.strandmodel = torch.nn.DataParallel(self.strandmodel) #第一次新增数据后267000；第二次新增：205002,1150002；只用短发训练：30000
-            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand-205002.pth")))
+            # self.strandmodel = torch.nn.DataParallel(self.strandmodel) #第二次新增：205002；第三次新增：490002，780000，3400002；只用短发训练：30000
+            self.strandmodel.load_state_dict(torch.load(os.path.join(rFolder,"../checkpoints/img2strand_780000.pth")))
+            print("originStepNet:"+os.path.join(rFolder,"../checkpoints/img2strand_780000.pth"))
             self.strandmodel.eval()
         self.use_depth = use_depth
         if use_depth:
@@ -97,10 +133,11 @@ class filter_crop:
             use_gt (bool, optional): 分割图用gt图. Defaults to False.
 
         Returns:
-            strand2d: 方向图，R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
+        res dict里面存的:
+            ori2D: 方向图，R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）
             bust:人体rgb图
-            avg_color:头发平均颜色
-            crop_image2:对齐到标准头后的头发分割图
+            color:头发平均颜色
+            ori_img:对齐到标准头后的头发分割图
             revert_rot,:人脸欧拉角
             self.cam_intri:相机内参矩阵
             self.cam_extri:相机外参矩阵
@@ -109,6 +146,7 @@ class filter_crop:
         #neuralhd即该函数输出的方向图说明：          R:第三通道，（0,1）表示（向左，向右）；G:第二通道，（0,1）表示（向下，向上）;B:0
         self.use_gt=use_gt
         crop_image,bust,img1 = self.get_hair_seg(img,gender,image_name)
+        res = {}
         if self.use_gt:
             avg_color,image=self.get_hair_avgcolor1(img1,crop_image)
             
@@ -120,7 +158,9 @@ class filter_crop:
             # crop_image=(crop_image*255).astype('uint8')
             # cv2.imwrite("1.png",(crop_image*255).astype('uint8'))
             avg_color=np.append(avg_color,255)
-            return crop_image,bust,avg_color,image,self.revert_rot,self.cam_intri,self.cam_extri
+            res = {'ori2D': crop_image, 'bust':bust,'color':avg_color, \
+                'ori_img':image,'revert_rot':self.revert_rot,'cam_extri':self.cam_extri,'cam_intri':self.cam_intri,'euler':self.euler}
+            return res
         if self.use_strand:
             crop_image= cv2.resize(crop_image,(512,512))
             mask1 = cv2.cvtColor(crop_image,cv2.COLOR_RGB2GRAY)
@@ -150,7 +190,7 @@ class filter_crop:
             # strand2d[mask1==0]=[0,0,0]
             # strand2d=(strand2d*255).astype('uint8')
             # cv2.imwrite(image_name.split('.')[0]+"_ori2_0.png",strand2d)
-            # 方向图网络需要输入的方向图
+            # 方向场网络需要输入的方向图
             strand2d = np.zeros((strand_pred.shape[0],strand_pred.shape[1],3))
             strand2d[:,:,1:3]=strand_pred#strand_pred:0通道
             strand2d[:,:,1]=1-strand2d[:,:,1]
@@ -159,7 +199,9 @@ class filter_crop:
             strand2d=(strand2d*255).astype('uint8')
             # cv2.imwrite(image_name.split('.')[0]+"_ori2.png",strand2d)
             avg_color=np.append(avg_color,255)
-            return strand2d,bust,avg_color,crop_image2,self.revert_rot,self.cam_intri,self.cam_extri
+            res = {'ori2D': strand2d, 'bust':bust,'color':avg_color, \
+                'ori_img':crop_image2,'revert_rot':self.revert_rot,'cam_extri':self.cam_extri,'cam_intri':self.cam_intri,'euler':self.euler}
+            return res
             # strand_pred = np.concatenate([mask+body*0.5, strand_pred*mask], axis=-1)
         import pyfilter#first generate it in strandhair HairNet_orient2D repo;have to install apt-get install libopencv-dev==4.2.0 and run in python 3.8.*，已经被弃用
         avg_color,image1=self.get_hair_avgcolor(img1,crop_image)
@@ -182,7 +224,9 @@ class filter_crop:
         avg_color=np.append(avg_color,255)
         # cv2.imshow("2",ori2D)
         # cv2.waitKey()
-        return ori2D,mask,avg_color,image1,self.revert_rot,self.cam_intri,self.cam_extri
+        res = {'ori2D': crop_image, 'bust':bust,'color':avg_color, \
+            'ori_img':image,'revert_rot':self.revert_rot,'cam_extri':self.cam_extri,'cam_intri':self.cam_intri,'euler':self.euler}
+        return res
     def get_hair_avgcolor1(self,img,mask):
         parse = mask[:, :, 2]
         mask1=mask[:, :, [0, 1]]
@@ -227,6 +271,7 @@ class filter_crop:
         r = Rotation.from_euler('xyz',euler,False)
         rot_matrix = r.as_matrix()
         self.revert_rot = np.linalg.inv(rot_matrix)
+        self.euler = euler
         self.body.vertices = np.dot(vertices,rot_matrix)+center
         m=[]
         _,bust,img2 = render_strand([[]],[],self.body,inference=True,orientation=[],intensity=3,matrix=m,mask=True)
@@ -247,8 +292,15 @@ class filter_crop:
         shoulder_lms = np.array(self.conf["shoulder_lms"])
         self.shoulder_lms = apply_matrix(self.body.vertices[shoulder_lms,:], m[0])
         tp = 'affine'
+        # x=trans.SimilarityTransform(scale=[1,1.1,1],dimensionality=3).params
+        # self.mean_lms[:17,:] = apply_matrix(self.mean_lms[:17,:], x)
         tform = trans.estimate_transform(tp, lms_3d[:17,:2], self.mean_lms[:17,:2])
         M = tform.params[0:2]
+        M_tform = tform.params
+        
+        # M_tform =get_matrix_from_2points_pair(lms_3d[:17,:2], self.mean_lms[:17,:2])
+        # M = M_tform[0:2]
+        
         if self.use_step:#先粗糙分割头发
             framesForHair[0] = cv2.resize(framesForHair[0],(640,640))
             step = self.hair_step.inference(framesForHair[0])
@@ -256,13 +308,15 @@ class filter_crop:
             step_align = cv2.warpAffine(step,
                                 M, (640, 640),
                                 borderValue=0.0)
-            # step_align1=(step_align*255).astype('uint8')
-            # lms1 = trans.matrix_transform(lms_3d[:17,:2], tform.params)
-            # for point in lms1:
-            #     cv2.circle(step_align1, tuple(point.astype('int')), 1, (0, 255, 0), 2)
-            # for point in self.mean_lms[:17,:2]:
-            #     cv2.circle(step_align1, tuple(point.astype('int')), 1, (255, 0, 0), 2)
-            # cv2.imwrite(image_name.split('.')[0]+"_2.png",step_align1)
+            step_align1=(step_align*255).astype('uint8')
+            lms1 = trans.matrix_transform(lms_3d[:17,:2], M_tform)
+            # for point in lms_3d[:17,:2]:
+            #     cv2.circle(step_align1, tuple(point.astype('int')), 1, (0, 0, 255), 2)#红色，实际图片检测到的关键点
+            for point in lms1:
+                cv2.circle(step_align1, tuple(point.astype('int')), 1, (0, 255, 0), 2)#绿色，对齐到base脸self.mean_lms的关键点
+            for point in self.mean_lms[:17,:2]:
+                cv2.circle(step_align1, tuple(point.astype('int')), 1, (255, 0, 0), 2)#base 脸 关键点 蓝色
+            cv2.imwrite(image_name.split('.')[0]+"_2.png",step_align1)
             
             #身体分割图
             body_parse = step_align[:, :, 2]
@@ -423,7 +477,7 @@ class filter_crop:
             # M1[1,0]=0
             # M1[0,2]=0
             
-            point=trans.matrix_transform(hair_point1, tform.params)
+            point=trans.matrix_transform(hair_point1, M_tform)
             length = np.linalg.norm(self.mean_lms[idx[0],:2]-self.mean_lms[idx[1],:2])//2
             point=np.mean(self.mean_lms[idx,:2],axis=0)[None]
             # point[0][1]-=length
@@ -453,7 +507,7 @@ class filter_crop:
                                 M1, (640, 640),
                                 borderValue=0.0)#将对齐到标准头的头发分割图对齐肩膀
         # step_align1=(aligned*255).astype('uint8')
-        # lms1 = trans.matrix_transform(lms_3d[:17,:2], tform.params)
+        # lms1 = trans.matrix_transform(lms_3d[:17,:2], M_tform)
         # for point in lms1:
         #     cv2.circle(aligned, tuple(point.astype('int')), 1, (0, 255, 0), 2)
         # for point in self.mean_lms[:17,:2]:

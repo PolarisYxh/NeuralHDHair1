@@ -49,7 +49,7 @@ class HairSpatDecoder(nn.Module):
         mid_cha=min(max_cha,min_cha*(2**n_layer-1))
         D = latnet_d
 
-        self.first_to_voxel = To_Voxel(C+1,mid_cha,D)
+        self.first_to_voxel = To_Voxel(C+1,mid_cha,D)#[257,256,6]
         self.first_out_layer=nn.Conv3d(mid_cha,out_cha,kernel_size=1,bias=False)
 
 
@@ -76,7 +76,7 @@ class HairSpatDecoder(nn.Module):
 
 
     def forward(self, caches,points,sample=True,depth=None):
-        x,_=self.first_to_voxel(caches[-1],None,points,False)#x:[1, 256, 6, 8, 8]
+        x,_=self.first_to_voxel(caches[-1],None,points,False)#caches:[-1]:[1,256,8,8];x:[1, 256, 6, 8, 8]
         # with autocast(enabled=False):
         # v=self.first_out_layer(x)
         for i in range(self.n_layer):
@@ -124,9 +124,9 @@ class To_Voxel(nn.Module):
         return x
 
     def forward(self, x,up,points,last_layer=False,depth=None):
-        feat=self.to_Voxel_with_sdf(x,up,last_layer)#feat0:[1, 257, 6, 8, 8],[1, 513, 12, 16, 16]，[1, 257, 24, 32, 32]
-                                                    #x0:   [1, 256, 8, 8],   [1, 256, 16, 16]，   [1, 128, 32, 32]
-                                                    #up:   none,             [1, 256, 12, 16,16]，[1, 128, 24, 32, 32]
+        feat=self.to_Voxel_with_sdf(x,up,last_layer)#feat:[1, 257, 6, 8, 8],[1, 513, 12, 16, 16]，[1, 257, 24, 32, 32]
+                                                    #x:   [1, 256, 8, 8],   [1, 256, 16, 16]，   [1, 128, 32, 32]
+                                                    #up:   none,             [1, 256, 12, 16,16]，[1, 128, 24, 32, 32],上一层的
         if last_layer:
 
             points=(points*2)-1
@@ -144,14 +144,14 @@ class To_Voxel(nn.Module):
             x=feat
 
 
-        x=self.refine1(x)
+        x=self.refine1(x)#[1, 257, 6, 8, 8] to [1, 1028, 6, 8, 8]
         phi = x.clone()
         x=self.refine2(x)
         x=self.refine3(x)
         x=self.refine4(x)
 
-        return x,phi#x0:[1, 256, 6, 8, 8],[1, 256, 12, 16, 16]，[1, 128, 24, 32, 32]
-                    #phi0:[1, 1028, 6, 8, 8],[1, 2052, 12, 16, 16]，[1, 1028, 24, 32, 32]
+        return x,phi#x:[1, 256, 6, 8, 8],[1, 256, 12, 16, 16]，[1, 128, 24, 32, 32]
+                    #phi:[1, 1028, 6, 8, 8],[1, 2052, 12, 16, 16]，[1, 1028, 24, 32, 32]
 
 
 class UnetDecoder(nn.Module):
@@ -252,4 +252,6 @@ class MutilLevelDecoder(nn.Module):
 
 
 
-
+if __name__=="__main__":
+    from torchsummary import summary
+    summary(HairSpatDecoder, input_size=(32,256,3,5,6,True), device='cpu')
